@@ -95,6 +95,9 @@ class Interpreter(private val vm: Vm) {
         val frame = Frame(method.registersCount)
         bindParams(frame, method, args, receiver)
         val hook = vm.hook
+        val outerMethod = vm.curMethod
+        val outerOffset = vm.curOffset
+        vm.curMethod = method
         hook?.onEnter(method, frame)
         try {
             var pc = 0
@@ -103,6 +106,7 @@ class Interpreter(private val vm: Vm) {
                 if (steps++ > vm.limits.maxSteps || vm.deadlineExceeded()) throw VmAbort("step limit")
                 if (pc !in method.insns.indices) throw VmAbort("pc out of range")
                 val insn = method.insns[pc]
+                vm.curOffset = insn.offset
                 hook?.onStep(method, insn, frame, pc)
                 when (val s = exec(method, insn, frame, pc)) {
                     is Next -> {
@@ -113,6 +117,8 @@ class Interpreter(private val vm: Vm) {
                 }
             }
         } finally {
+            vm.curMethod = outerMethod
+            vm.curOffset = outerOffset
             hook?.onExit(method)
         }
     }
@@ -522,6 +528,7 @@ class Interpreter(private val vm: Vm) {
         } catch (t: DvmThrowable) {
             return routeThrow(method, insn.offset, t, frame)
         } catch (e: StubNotImplemented) {
+            vm.diagnose(Diagnostic.Kind.MISSING_STUB, ref, "no stub")
             UnknownVal(ref.returnType)
         }
         frame.result = result

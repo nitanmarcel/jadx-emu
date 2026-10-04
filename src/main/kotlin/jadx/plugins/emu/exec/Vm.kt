@@ -1,7 +1,9 @@
 package jadx.plugins.emu.exec
 
 import jadx.plugins.emu.exec.model.DexMethod
+import jadx.plugins.emu.exec.model.MethodRef
 import jadx.plugins.emu.exec.runtime.ClinitState
+import jadx.plugins.emu.exec.runtime.DvmThrowable
 import jadx.plugins.emu.exec.runtime.UNKNOWN
 import jadx.plugins.emu.exec.runtime.UnknownVal
 
@@ -43,6 +45,7 @@ interface NativeBridge {
  * @property statics static field storage, shared with the caller so state can outlive the VM
  * @property androidEnvUnknown when true, `Build.*` fields from [AndroidEnv] read as unknown so that
  *   results do not depend on a particular device; set false for concrete emulation
+ * @property diagnostics sinks for calls this VM could not execute
  */
 class Vm(
     val source: MethodSource,
@@ -55,11 +58,20 @@ class Vm(
     val android: AndroidStubs = AndroidStubs(),
     val statics: HashMap<String, HashMap<String, Any?>> = HashMap(),
     val androidEnvUnknown: Boolean = true,
+    val diagnostics: List<DiagnosticSink> = emptyList(),
 ) {
     /**
      * Executor for host-class calls under the [host] policy.
      */
-    val hostExec = HostExec(host, android)
+    val hostExec = HostExec(host, android) { kind, ref, reason -> diagnose(kind, ref, reason) }
+    internal var curMethod: DexMethod? = null
+    internal var curOffset = -1
+
+    internal fun diagnose(kind: Diagnostic.Kind, ref: MethodRef, detail: String) {
+        if (diagnostics.isEmpty()) return
+        val d = Diagnostic(kind, ref, curMethod, curOffset, detail)
+        for (sink in diagnostics) sink.report(d)
+    }
     private val clinitState = HashMap<String, ClinitState>()
     private val interp = Interpreter(this)
     private var depth = 0
@@ -78,7 +90,17 @@ class Vm(
         deadline = if (limits.maxMillis <= 0) Long.MAX_VALUE else System.nanoTime() + limits.maxMillis * 1_000_000
         runCatching { ensureClinit(method.declClass) }
         deadline = if (limits.maxMillis <= 0) Long.MAX_VALUE else System.nanoTime() + limits.maxMillis * 1_000_000
-        return runCatching { interp.run(method, args, receiver) }.getOrElse { UNKNOWN }
+        return try {
+            interp.run(method, args, receiver)
+        } catch (e: VmAbort) {
+            diagnose(Diagnostic.Kind.ABORTED, method.ref, e.message ?: "aborted")
+            UNKNOWN
+        } catch (t: DvmThrowable) {
+            diagnose(Diagnostic.Kind.UNCAUGHT, method.ref, "uncaught ${t.type}")
+            UNKNOWN
+        } catch (t: Throwable) {
+            UNKNOWN
+        }
     }
 
     /**
@@ -88,11 +110,15 @@ class Vm(
      * emulated exceptions propagate to the caller.
      */
     fun call(method: DexMethod, args: List<Any?>, receiver: Any?): Any? {
-        if (depth >= limits.maxDepth) return UnknownVal(method.ref.returnType)
+        if (depth >= limits.maxDepth) {
+            diagnose(Diagnostic.Kind.ABORTED, method.ref, "depth limit")
+            return UnknownVal(method.ref.returnType)
+        }
         depth++
         try {
             return interp.run(method, args, receiver)
         } catch (e: VmAbort) {
+            diagnose(Diagnostic.Kind.ABORTED, method.ref, e.message ?: "aborted")
             return UnknownVal(method.ref.returnType)
         } finally {
             depth--

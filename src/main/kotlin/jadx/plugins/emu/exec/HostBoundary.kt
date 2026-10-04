@@ -44,8 +44,17 @@ class HostBoundary(
     /**
      * Whether [m] may run, optionally dispatched on an instance of [receiverClass].
      */
-    fun canExecute(m: Executable, receiverClass: Class<*>? = null): Boolean =
-        enabled && inNamespace(m.declaringClass) && (!denied.matches(m, receiverClass) || allow.matches(m, receiverClass))
+    fun canExecute(m: Executable, receiverClass: Class<*>? = null): Boolean = denial(m, receiverClass) == null
+
+    /**
+     * Why [m] may not run, or null if it may.
+     */
+    fun denial(m: Executable, receiverClass: Class<*>? = null): String? = when {
+        !enabled -> DISABLED
+        !inNamespace(m.declaringClass) -> OUTSIDE_NAMESPACE
+        denied.matches(m, receiverClass) && !allow.matches(m, receiverClass) -> DENIED
+        else -> null
+    }
 
     /**
      * Whether static field [f] may be read.
@@ -63,6 +72,10 @@ class HostBoundary(
     }
 
     companion object {
+        const val DISABLED = "host execution disabled"
+        const val OUTSIDE_NAMESPACE = "outside host namespace"
+        const val DENIED = "denied by host policy"
+
         /**
          * Policy that denies all host execution.
          */

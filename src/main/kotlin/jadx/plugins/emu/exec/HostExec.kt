@@ -1,9 +1,11 @@
 package jadx.plugins.emu.exec
 
+import jadx.plugins.emu.exec.Diagnostic.Kind
 import jadx.plugins.emu.exec.model.MethodRef
 import jadx.plugins.emu.exec.runtime.DvmObject
 import jadx.plugins.emu.exec.runtime.UninitHost
 import jadx.plugins.emu.exec.runtime.UnknownVal
+import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
@@ -14,7 +16,11 @@ import java.lang.reflect.Modifier
  * only if [policy] allows that member and all arguments are concrete host values. Anything else yields an
  * [UnknownVal].
  */
-class HostExec(private val policy: HostBoundary, private val stubs: AndroidStubs = AndroidStubs()) {
+class HostExec(
+    private val policy: HostBoundary,
+    private val stubs: AndroidStubs = AndroidStubs(),
+    private val report: (Kind, MethodRef, String) -> Unit = { _, _, _ -> },
+) {
 
     /**
      * Invoke a static method.
@@ -22,10 +28,11 @@ class HostExec(private val policy: HostBoundary, private val stubs: AndroidStubs
     fun invokeStatic(ref: MethodRef, args: List<Any?>): Any? {
         val sv = stubs.callStatic(ref, args)
         if (sv !== NotHandled) return sv
-        if (!argsUsable(args)) return UnknownVal(ref.returnType)
-        val m = resolve(ref) ?: return UnknownVal(ref.returnType)
-        if (!Modifier.isStatic(m.modifiers) || !policy.canExecute(m)) return UnknownVal(ref.returnType)
-        return runCatching { m.invoke(null, *marshalArgs(ref.argTypes, args)) }.getOrElse { UnknownVal(ref.returnType) }
+        if (!argsUsable(args)) return unknown(Kind.HOST_UNKNOWN_INPUT, ref, ref.returnType, UNKNOWN_ARGS)
+        val m = resolve(ref) ?: return notFound(ref, ref.returnType)
+        if (!Modifier.isStatic(m.modifiers)) return unknown(Kind.HOST_NOT_FOUND, ref, ref.returnType, "not static on host")
+        policy.denial(m)?.let { return denied(ref, ref.returnType, it) }
+        return runCatching { m.invoke(null, *marshalArgs(ref.argTypes, args)) }.getOrElse { threw(ref, ref.returnType, it) }
     }
 
     /**
@@ -34,11 +41,12 @@ class HostExec(private val policy: HostBoundary, private val stubs: AndroidStubs
     fun invokeInstance(ref: MethodRef, receiver: Any?, args: List<Any?>): Any? {
         val sv = stubs.callInstance(ref, receiver, args)
         if (sv !== NotHandled) return sv
-        if (!usable(receiver) || !argsUsable(args)) return UnknownVal(ref.returnType)
+        if (!usable(receiver)) return unknown(Kind.HOST_UNKNOWN_INPUT, ref, ref.returnType, UNKNOWN_RECEIVER)
+        if (!argsUsable(args)) return unknown(Kind.HOST_UNKNOWN_INPUT, ref, ref.returnType, UNKNOWN_ARGS)
         val eff = redispatch(ref, receiver)
-        val m = resolve(eff) ?: return UnknownVal(ref.returnType)
-        if (!policy.canExecute(m, receiver!!.javaClass)) return UnknownVal(ref.returnType)
-        return runCatching { m.invoke(receiver, *marshalArgs(eff.argTypes, args)) }.getOrElse { UnknownVal(ref.returnType) }
+        val m = resolve(eff) ?: return notFound(eff, ref.returnType)
+        policy.denial(m, receiver!!.javaClass)?.let { return denied(ref, ref.returnType, it) }
+        return runCatching { m.invoke(receiver, *marshalArgs(eff.argTypes, args)) }.getOrElse { threw(ref, ref.returnType, it) }
     }
 
     private fun redispatch(ref: MethodRef, receiver: Any?): MethodRef =
@@ -48,28 +56,55 @@ class HostExec(private val policy: HostBoundary, private val stubs: AndroidStubs
      * Instantiate host class [type] using the constructor described by [ref].
      */
     fun construct(type: String, ref: MethodRef, args: List<Any?>): Any? {
-        if (!argsUsable(args)) return UnknownVal(type)
+        if (!argsUsable(args)) return unknown(Kind.HOST_UNKNOWN_INPUT, ref, type, UNKNOWN_ARGS)
+        val ctor = runCatching { hostClass(type).getDeclaredConstructor(*paramClasses(ref.argTypes)) }
+            .getOrElse { return notFound(ref, type) }
+        policy.denial(ctor)?.let { return denied(ref, type, it) }
         return runCatching {
-            val ctor = hostClass(type).getDeclaredConstructor(*paramClasses(ref.argTypes))
-            if (!policy.canExecute(ctor)) return UnknownVal(type)
             ctor.isAccessible = true
             ctor.newInstance(*marshalArgs(ref.argTypes, args))
-        }.getOrElse { UnknownVal(type) }
+        }.getOrElse { threw(ref, type, it) }
     }
 
     /**
      * Run [m], already resolved by the caller, under the policy.
      */
     fun invokeResolved(m: Method, receiver: Any?, args: List<Any?>, returnType: String): Any? {
-        if (!argsUsable(args) || (!Modifier.isStatic(m.modifiers) && !usable(receiver))) return UnknownVal(returnType)
-        if (!policy.canExecute(m, receiver?.javaClass)) return UnknownVal(returnType)
         val types = m.parameterTypes.map { classDesc(it) }
-        return runCatching { m.invoke(receiver, *marshalArgs(types, args)) }.getOrElse { UnknownVal(returnType) }
+        val ref = MethodRef(classDesc(m.declaringClass), m.name, types, returnType)
+        if (!Modifier.isStatic(m.modifiers) && !usable(receiver)) return unknown(Kind.HOST_UNKNOWN_INPUT, ref, returnType, UNKNOWN_RECEIVER)
+        if (!argsUsable(args)) return unknown(Kind.HOST_UNKNOWN_INPUT, ref, returnType, UNKNOWN_ARGS)
+        policy.denial(m, receiver?.javaClass)?.let { return denied(ref, returnType, it) }
+        return runCatching { m.invoke(receiver, *marshalArgs(types, args)) }.getOrElse { threw(ref, returnType, it) }
     }
 
     private fun resolve(ref: MethodRef): Method? = runCatching {
         hostClass(ref.declClass).getMethod(ref.name, *paramClasses(ref.argTypes))
     }.getOrNull()
+
+    private fun unknown(kind: Kind, ref: MethodRef, type: String, reason: String): UnknownVal {
+        report(kind, ref, reason)
+        return UnknownVal(type)
+    }
+
+    private fun denied(ref: MethodRef, type: String, reason: String): UnknownVal {
+        val kind = when (reason) {
+            HostBoundary.DENIED -> Kind.HOST_DENIED
+            HostBoundary.OUTSIDE_NAMESPACE -> Kind.HOST_OUTSIDE_NAMESPACE
+            else -> Kind.HOST_DISABLED
+        }
+        return unknown(kind, ref, type, reason)
+    }
+
+    private fun notFound(ref: MethodRef, type: String): UnknownVal {
+        val reason = if (runCatching { hostClass(ref.declClass) }.isFailure) "class not found" else "method not found on host"
+        return unknown(Kind.HOST_NOT_FOUND, ref, type, reason)
+    }
+
+    private fun threw(ref: MethodRef, type: String, t: Throwable): UnknownVal {
+        val cause = if (t is InvocationTargetException) t.targetException ?: t else t
+        return unknown(Kind.HOST_THREW, ref, type, "host threw ${cause.javaClass.name}")
+    }
 
     private fun usable(v: Any?) = v != null && v !is UnknownVal && v !is DvmObject && v !is UninitHost
     private fun argsUsable(args: List<Any?>) = args.all { it !is UnknownVal && it !is DvmObject && it !is UninitHost }
@@ -87,6 +122,11 @@ class HostExec(private val policy: HostBoundary, private val stubs: AndroidStubs
         "Z" -> when (v) { is Boolean -> v; is Number -> v.toInt() != 0; else -> false }
         "C" -> when (v) { is Char -> v; is Number -> v.toInt().toChar(); else -> '\u0000' }
         else -> v
+    }
+
+    private companion object {
+        const val UNKNOWN_ARGS = "unknown arguments"
+        const val UNKNOWN_RECEIVER = "unknown receiver"
     }
 
     private fun classDesc(c: Class<*>): String = when {

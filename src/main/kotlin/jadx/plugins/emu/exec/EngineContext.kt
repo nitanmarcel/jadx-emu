@@ -5,6 +5,7 @@ import jadx.plugins.emu.exec.runtime.UninitHost
 import jadx.plugins.emu.exec.runtime.UnknownVal
 import jadx.plugins.emu.exec.runtime.WideHigh
 import java.util.IdentityHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Per-application configuration and facts shared by many [Vm] instances: the host-code policy, the
@@ -22,12 +23,17 @@ class EngineContext(
     val host: HostBoundary = HostBoundary(),
     val android: AndroidStubs = AndroidStubs(),
 ) {
+    /**
+     * Sinks receiving [Diagnostic]s from every VM built on this context; [LogSink] is registered by default.
+     */
+    val diagnostics: MutableList<DiagnosticSink> = CopyOnWriteArrayList(listOf(LogSink()))
 
     /**
      * A VM over this context's source, policy and environment.
      *
      * @param androidEnvUnknown when true, `Build.*` fields read as unknown so results do not depend on the
      *   configured device; the default for analyses
+     * @param diagnostics sinks for this VM, by default the context-wide ones
      */
     fun newVm(
         limits: ExecLimits = this.limits,
@@ -35,7 +41,8 @@ class EngineContext(
         hooks: HookRegistry? = null,
         statics: HashMap<String, HashMap<String, Any?>> = HashMap(),
         androidEnvUnknown: Boolean = true,
-    ): Vm = Vm(source, host, limits, hook, null, hooks, this, android, statics, androidEnvUnknown)
+        diagnostics: List<DiagnosticSink> = this.diagnostics,
+    ): Vm = Vm(source, host, limits, hook, null, hooks, this, android, statics, androidEnvUnknown, diagnostics)
 
     companion object {
         /**
@@ -73,7 +80,7 @@ class EngineContext(
     }
 
     private fun computeSnapshot(desc: String): HashMap<String, Any?>? {
-        val vm = Vm(source, host, limits, ctx = null, android = android)
+        val vm = Vm(source, host, limits, ctx = null, android = android, diagnostics = diagnostics)
         runCatching { vm.ensureClinit(desc) }
         val allowed = superChain(desc)
         if (vm.initialized().any { it !in allowed }) return null

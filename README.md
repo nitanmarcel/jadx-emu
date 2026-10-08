@@ -9,7 +9,7 @@ An extension is a jar in `<jadx config>/plugins-data/jadx-emu/extensions/` conta
 
 ```kotlin
 dependencies {
-    compileOnly("io.github.nitanmarcel:jadx-emu:0.1.0-beta.4")
+    compileOnly("io.github.nitanmarcel:jadx-emu:0.1.0-beta.5")
     compileOnly("io.github.skylot:jadx-core:1.5.6")
 }
 ```

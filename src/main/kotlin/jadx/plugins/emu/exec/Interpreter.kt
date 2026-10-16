@@ -514,7 +514,10 @@ class Interpreter(private val vm: Vm) {
         }
         val reflected = try { tryReflect(ref, recv, args) } catch (t: DvmThrowable) { return routeThrow(method, insn.offset, t, frame) }
         reflected?.let { (res, rt) ->
-            frame.result = res; frame.resultType = rt; return Next(pc + 1)
+            val out = try { afterHooks(ref, recv, args, res) } catch (t: DvmThrowable) { return routeThrow(method, insn.offset, t, frame) }
+            frame.result = out
+            frame.resultType = if (out === res) rt else ref.returnType   // a rewritten value no longer has the reflected type
+            return Next(pc + 1)
         }
         if (ref.name == "<init>" && recv is UninitHost) {
             frame.replace(recv, vm.hostExec.construct(recv.type, ref, args))
@@ -529,7 +532,10 @@ class Interpreter(private val vm: Vm) {
         if (target == null && vm.nativeBridge != null && vm.source.isNative(ref.declClass, ref.shortId)) {
             val sig = "(${ref.argTypes.joinToString("")})${ref.returnType}"
             val nr = vm.nativeBridge.call(ref.declClass.removePrefix("L").removeSuffix(";"), ref.name, sig, args, recv)
-            if (nr !== NotHandled) { frame.result = nr; frame.resultType = ref.returnType; return Next(pc + 1) }
+            if (nr !== NotHandled) {
+                frame.result = try { afterHooks(ref, recv, args, nr) } catch (t: DvmThrowable) { return routeThrow(method, insn.offset, t, frame) }
+                frame.resultType = ref.returnType; return Next(pc + 1)
+            }
         }
         val result = try {
             when {
@@ -543,9 +549,17 @@ class Interpreter(private val vm: Vm) {
             vm.diagnose(Diagnostic.Kind.MISSING_STUB, ref, "no stub")
             UnknownVal(ref.returnType)
         }
-        frame.result = result
+        frame.result = try { afterHooks(ref, recv, args, result) } catch (t: DvmThrowable) { return routeThrow(method, insn.offset, t, frame) }
         frame.resultType = ref.returnType
         return Next(pc + 1)
+    }
+
+    /**
+     * Let `Hooks.after` handlers observe or rewrite [result]; a rewritten value is coerced to the declared return type.
+     */
+    private fun afterHooks(ref: MethodRef, recv: Any?, args: MutableList<Any?>, result: Any?): Any? {
+        val r = vm.hooks.runAfters(vm, ref, recv, args, result)
+        return if (r === result) r else retype(r, ref.returnType)
     }
 
     /**

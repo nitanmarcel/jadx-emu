@@ -39,6 +39,14 @@ fun interface MethodHandler { fun MethodCall.handle() }
 fun interface Registration { fun remove() }
 
 /**
+ * Handler run after a call has completed, to observe or rewrite its result.
+ *
+ * Return [result] unchanged to only observe, or another value to change what the caller receives.
+ * Calling [MethodCall.replace] here has no effect (it is reported as a handler failure): return the new value.
+ */
+fun interface ReturnHandler { fun MethodCall.handle(result: Any?): Any? }
+
+/**
  * Values reported for `android.os.Build` and `Build.VERSION` fields.
  */
 class AndroidEnv(
@@ -81,12 +89,14 @@ class Hooks private constructor(val env: AndroidEnv, private val parent: Hooks?)
     constructor(env: AndroidEnv = AndroidEnv()) : this(env, null)
 
     private class Entry(val id: Int, val owner: Hooks, val handler: MethodHandler?, val value: Any?, val builtin: Boolean)
+    private class AfterEntry(val id: Int, val owner: Hooks, val handler: ReturnHandler)
 
     private val root: Hooks = parent?.root ?: this
     private val counter = AtomicInteger(0)
     private val hooks = ConcurrentHashMap<String, CopyOnWriteArrayList<Entry>>()
     private val stubs = ConcurrentHashMap<String, CopyOnWriteArrayList<Entry>>()
     private val fields = ConcurrentHashMap<String, CopyOnWriteArrayList<Entry>>()
+    private val afters = ConcurrentHashMap<String, CopyOnWriteArrayList<AfterEntry>>()
 
     init { if (parent == null) registerBuiltins() }
 
@@ -99,6 +109,19 @@ class Hooks private constructor(val env: AndroidEnv, private val parent: Hooks?)
      * Run [handler] before every call matching [pattern].
      */
     fun hook(pattern: String, handler: MethodHandler): Registration = add(root.hooks, pattern, handler, null)
+
+    /**
+     * Run [handler] after every call matching [pattern] that completed through emulated code, a host method
+     * or the native bridge, with the call's result (a stub's result included). Calls replaced by a hook are not
+     * seen, and neither are calls that threw or constructions of host objects. Handlers registered for the exact
+     * signature run before name-only ones, newest first within each group, each receiving the previous result;
+     * a handler that throws is reported as [Diagnostic.Kind.HANDLER_FAILED] and leaves the result unchanged.
+     */
+    fun after(pattern: String, handler: ReturnHandler): Registration {
+        val entry = AfterEntry(root.counter.incrementAndGet(), this, handler)
+        root.afters.getOrPut(pattern) { CopyOnWriteArrayList() }.add(entry)
+        return Registration { root.afters[pattern]?.removeIf { it.id == entry.id } }
+    }
 
     /**
      * Implement a framework or host method matching [pattern].
@@ -121,6 +144,8 @@ class Hooks private constructor(val env: AndroidEnv, private val parent: Hooks?)
     fun clear() {
         val mine: (Entry) -> Boolean = if (parent == null) { e -> !e.builtin } else { e -> e.owner === this }
         for (map in listOf(root.hooks, root.stubs, root.fields)) for (list in map.values) list.removeIf(mine)
+        val mineAfter: (AfterEntry) -> Boolean = if (parent == null) { _ -> true } else { e -> e.owner === this }
+        for (list in root.afters.values) list.removeIf(mineAfter)
     }
 
     /**
@@ -136,6 +161,26 @@ class Hooks private constructor(val env: AndroidEnv, private val parent: Hooks?)
             if (call.replaced) break
         }
         return call
+    }
+
+    internal fun runAfters(vm: Vm, ref: MethodRef, receiver: Any?, args: MutableList<Any?>, result: Any?): Any? {
+        if (root.afters.isEmpty()) return result   // nothing was ever registered: no allocation, no lookup
+        val entries = root.matchingAfters(ref) ?: return result
+        var out = result
+        for (e in entries) {
+            val call = MethodCall(vm, ref, receiver, args)
+            try {
+                out = with(e.handler) { call.handle(out) }
+            } catch (t: DvmThrowable) {
+                throw t
+            } catch (t: VmAbort) {
+                throw t
+            } catch (t: Throwable) {
+                vm.diagnose(Diagnostic.Kind.HANDLER_FAILED, ref, t.toString())
+            }
+            if (call.replaced) vm.diagnose(Diagnostic.Kind.HANDLER_FAILED, ref, "replace() has no effect in an after handler; return the new value")
+        }
+        return out
     }
 
     internal fun runStubs(vm: Vm, ref: MethodRef, receiver: Any?, args: List<Any?>): Any? {
@@ -175,6 +220,16 @@ class Hooks private constructor(val env: AndroidEnv, private val parent: Hooks?)
         val byName = map["${ref.declClass}->${ref.name}"]
         if (exact.isNullOrEmpty() && byName.isNullOrEmpty()) return null
         val out = ArrayList<Entry>((exact?.size ?: 0) + (byName?.size ?: 0))
+        exact?.let { out.addAll(it.asReversed()) }
+        byName?.let { out.addAll(it.asReversed()) }
+        return out
+    }
+
+    private fun matchingAfters(ref: MethodRef): List<AfterEntry>? {
+        val exact = afters["${ref.declClass}->${ref.shortId}"]
+        val byName = afters["${ref.declClass}->${ref.name}"]
+        if (exact.isNullOrEmpty() && byName.isNullOrEmpty()) return null
+        val out = ArrayList<AfterEntry>((exact?.size ?: 0) + (byName?.size ?: 0))
         exact?.let { out.addAll(it.asReversed()) }
         byName?.let { out.addAll(it.asReversed()) }
         return out

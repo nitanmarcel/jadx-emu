@@ -23,7 +23,9 @@ import java.nio.file.Files
 object TestDex {
     private const val API = 33
 
-    fun assemble(vararg classes: String): DexInputSource {
+    fun assemble(vararg classes: String): DexInputSource = DexInputSource.load(assembleFile(*classes))
+
+    fun assembleFile(vararg classes: String): File {
         val builder = DexBuilder(Opcodes.forApi(API))
         for (source in classes) {
             val errors = StringBuilder()
@@ -47,7 +49,7 @@ object TestDex {
         val dir = Files.createTempDirectory("emu-test").toFile()
         val dex = File(dir, "classes.dex")
         builder.writeTo(FileDataStore(dex))
-        return DexInputSource.load(dex)
+        return dex
     }
 
     fun method(source: DexInputSource, cls: String, shortId: String): DexMethod =

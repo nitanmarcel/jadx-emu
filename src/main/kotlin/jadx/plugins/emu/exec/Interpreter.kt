@@ -11,6 +11,7 @@ import jadx.plugins.emu.exec.model.StringRef
 import jadx.plugins.emu.exec.model.SwitchPayload
 import jadx.plugins.emu.exec.model.TypeRef
 import jadx.plugins.emu.exec.runtime.DvmObject
+import jadx.plugins.emu.exec.runtime.defaultValueOf
 import jadx.plugins.emu.exec.runtime.DvmThrowable
 import jadx.plugins.emu.exec.runtime.UninitHost
 import jadx.plugins.emu.exec.runtime.UnknownVal
@@ -1204,10 +1205,7 @@ class Interpreter(private val vm: Vm) {
     private fun cf(v: Any?): Float = when (v) { is Float -> v; is Double -> v.toFloat(); is Int -> Float.fromBits(v); is Long -> v.toFloat(); else -> ci(v).toFloat() }
     private fun cd(v: Any?): Double = when (v) { is Double -> v; is Float -> v.toDouble(); is Long -> Double.fromBits(v); else -> ci(v).toDouble() }
 
-    private fun defaultValue(type: String): Any? = when (type) {
-        "I", "B", "S", "C" -> 0; "J" -> 0L; "F" -> 0f; "D" -> 0.0; "Z" -> false
-        else -> null
-    }
+    private fun defaultValue(type: String): Any? = defaultValueOf(type)
 
     private fun fieldSet(frame: Frame, dest: Int, raw: Any?, t: String) {
         val v = retype(raw, t)

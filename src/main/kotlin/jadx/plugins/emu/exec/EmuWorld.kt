@@ -1,7 +1,6 @@
 package jadx.plugins.emu.exec
 
 import jadx.plugins.emu.api.Hooks
-import jadx.plugins.emu.exec.runtime.DvmObject
 
 /**
  * Mutable emulation state shared between successive [Vm] runs: static fields and hooks.
@@ -29,29 +28,3 @@ fun worldVm(src: MethodSource, world: EmuWorld, limits: ExecLimits = ExecLimits(
         statics = world.statics, androidEnvUnknown = false,
         diagnostics = world.ctx?.diagnostics ?: emptyList(),
     )
-
-/**
- * Emulate `new classDesc(args)`: allocate a [DvmObject] and run the matching constructor in [world].
- *
- * Framework classes without a body are allocated without running a constructor as long as the
- * constructor signature exists in [FrameworkStubs].
- *
- * @param ctorSig constructor signature such as `(Ljava/lang/String;)V`; defaults to the no-arg constructor
- * @throws IllegalArgumentException if no such constructor exists
- */
-fun constructObject(src: MethodSource, world: EmuWorld, classDesc: String, ctorSig: String?, args: List<Any?>): DvmObject {
-    val obj = DvmObject(classDesc)
-    val sig = ctorSig ?: "()V"
-    val init = src.method(classDesc, "<init>$sig")
-    if (init != null) {
-        worldVm(src, world).invoke(init, args, obj)
-        return obj
-    }
-    if (world.hooks.isFrameworkClass(classDesc)) {
-        if (FrameworkStubs.method(classDesc, "<init>$sig") == null) {
-            throw IllegalArgumentException("no <init>$sig on framework class $classDesc")
-        }
-        return obj
-    }
-    throw IllegalArgumentException("no <init>$sig on $classDesc")
-}

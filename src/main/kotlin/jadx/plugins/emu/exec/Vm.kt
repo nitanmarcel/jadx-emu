@@ -8,6 +8,7 @@ import jadx.plugins.emu.exec.runtime.DvmObject
 import jadx.plugins.emu.exec.runtime.DvmThrowable
 import jadx.plugins.emu.exec.runtime.UNKNOWN
 import jadx.plugins.emu.exec.runtime.UnknownVal
+import jadx.plugins.emu.exec.runtime.defaultValueOf
 
 /**
  * Thrown to stop the current emulation run (limits exceeded, detached debugger, invalid pc).
@@ -154,6 +155,78 @@ class Vm(
     }
 
     private fun hostDescriptor(cls: Class<*>): String = "L" + cls.name.replace('.', '/') + ";"
+
+    /**
+     * Emulate `new classDesc(args)` with the constructor of signature [ctorSig].
+     *
+     * @throws IllegalArgumentException if no such constructor exists
+     */
+    fun construct(classDesc: String, ctorSig: String = "()V", args: List<Any?> = emptyList()): DvmObject {
+        val obj = DvmObject(classDesc)
+        source.method(classDesc, "<init>$ctorSig")?.let { init ->
+            invoke(init, args, obj)
+            return obj
+        }
+        if (hooks.isFrameworkClass(classDesc) && FrameworkStubs.method(classDesc, "<init>$ctorSig") != null) return obj
+        throw IllegalArgumentException("no <init>$ctorSig on $classDesc")
+    }
+
+    /**
+     * Read static field `Lcls;->NAME`, initializing the class first; [UNKNOWN] if it cannot be read.
+     */
+    fun getStatic(pattern: String): Any? {
+        val (cls, name) = splitField(pattern)
+        val info = source.classInfo(cls)
+        if (info == null) return hostStaticField(cls, name).let { if (it === NotHandled) UNKNOWN else it }
+        runCatching { ensureClinit(cls) }
+        val meta = findField(cls, name, static = true) ?: return UNKNOWN
+        val statics = staticsOf(meta.ref.declClass)
+        return if (statics.containsKey(meta.ref.key)) statics[meta.ref.key] else defaultValueOf(meta.ref.type)
+    }
+
+    /**
+     * Write static field `Lcls;->NAME` of an application class, initializing the class first.
+     */
+    fun setStatic(pattern: String, value: Any?) {
+        val (cls, name) = splitField(pattern)
+        runCatching { ensureClinit(cls) }
+        val meta = findField(cls, name, static = true)
+        val (owner, key) = if (meta != null) meta.ref.declClass to meta.ref.key else cls to "$cls.$name"
+        staticsOf(owner)[key] = value
+    }
+
+    /**
+     * Read instance field [name] of [obj], resolved on its class chain.
+     */
+    fun getField(obj: DvmObject, name: String): Any? {
+        val meta = findField(obj.type, name, static = false)
+        val key = meta?.ref?.key ?: obj.fields.keys.firstOrNull { it.endsWith(".$name") } ?: return UNKNOWN
+        return if (obj.fields.containsKey(key)) obj.fields[key] else defaultValueOf(meta?.ref?.type ?: "")
+    }
+
+    /**
+     * Write instance field [name] of [obj], resolved on its class chain.
+     */
+    fun setField(obj: DvmObject, name: String, value: Any?) {
+        val meta = findField(obj.type, name, static = false)
+        obj.fields[meta?.ref?.key ?: obj.fields.keys.firstOrNull { it.endsWith(".$name") } ?: "${obj.type}.$name"] = value
+    }
+
+    private fun splitField(pattern: String): Pair<String, String> {
+        val i = pattern.indexOf("->")
+        require(i > 0 && i < pattern.length - 2) { "malformed field pattern: $pattern" }
+        return pattern.substring(0, i) to pattern.substring(i + 2)
+    }
+
+    private fun findField(startType: String, name: String, static: Boolean): FieldMeta? {
+        var cur: String? = startType
+        while (cur != null) {
+            val info = source.classInfo(cur) ?: return null
+            info.fields.firstOrNull { it.ref.name == name && it.isStatic == static }?.let { return it }
+            cur = info.superType
+        }
+        return null
+    }
 
     /**
      * Static field storage of [declClass], created on first access. Keys are [jadx.plugins.emu.exec.model.FieldRef.key].

@@ -1,26 +1,26 @@
 package jadx.plugins.emu.api
 
-import jadx.plugins.emu.exec.EmuWorld
-import jadx.plugins.emu.exec.EngineContext
+import jadx.plugins.emu.exec.DiagnosticSink
 import jadx.plugins.emu.exec.ExecLimits
+import jadx.plugins.emu.exec.HostBoundary
 import jadx.plugins.emu.exec.MethodSource
 import jadx.plugins.emu.exec.Vm
 import jadx.plugins.emu.exec.graph.Dataflow
 import jadx.plugins.emu.exec.model.DexMethod
+import java.nio.file.Path
 
 /**
- * Emulator state for the loaded application, shared by all extensions of a project load.
+ * Emulator for the loaded application, shared by all extensions of a project load.
  *
- * Members are created on first access. Changes made through [world], such as static field values or hooks,
- * are visible to every extension.
+ * Members are created on first access. Static fields written by one VM are visible to every VM
+ * created by [newVm].
  *
  * ```kotlin
- * val method = ctx.emu.method("com.app.Crypto", "key()Ljava/lang/String;") ?: return
+ * val method = ctx.emu.method("Lcom/app/Crypto;->key()Ljava/lang/String;") ?: return
  * val value = ctx.emu.newVm().invoke(method)
  * ```
  */
 interface EmuContext {
-
     /**
      * Classes and method bodies of the loaded application.
      *
@@ -31,48 +31,58 @@ interface EmuContext {
     val source: MethodSource
 
     /**
-     * Mutable state shared between VMs created by [newVm]: static fields, hooks and stubs.
-     */
-    val world: EmuWorld
-
-    /**
-     * Configuration and cached facts for [source]: host code policy, Android environment and
-     * static initializer results.
-     */
-    val engine: EngineContext
-
-    /**
      * Limits used by [newVm] and [newDataflow] unless overridden.
      */
     val limits: ExecLimits
 
     /**
-     * Creates a VM that executes methods of [source] and reads and writes [world].
-     *
-     * The VM uses the configured Android device values.
+     * Which host (JVM) classes emulated code may execute.
+     */
+    val host: HostBoundary
+
+    /**
+     * Sinks receiving a report for every call the emulator could not execute.
+     */
+    val diagnostics: MutableList<DiagnosticSink>
+
+    /**
+     * Creates a VM that executes methods of [source] with the configured Android device values.
      */
     fun newVm(limits: ExecLimits = this.limits): Vm
 
     /**
      * Creates a dataflow analysis over a new VM.
      *
-     * The VM does not write to [world] and treats Android device values as unknown, so results do not
-     * depend on the configured device. To analyze with the device values, use [EngineContext.newVm] with
-     * `androidEnvUnknown = false` and pass the VM to [Dataflow].
+     * The VM does not share static fields with [newVm] and treats Android device values as unknown, so
+     * results do not depend on the configured device.
      */
     fun newDataflow(limits: ExecLimits = this.limits): Dataflow
 
     /**
-     * Returns the method with the given jadx class name and short id, or `null` if [source] has no such method.
-     *
-     * @param rawClassName Class name as returned by `ClassInfo.getRawName()`, with `$` for inner classes,
-     *   for example `com.foo.Bar$Inner`.
-     * @param shortId Method short id as returned by `MethodInfo.getShortId()`, for example `dec([BI)Ljava/lang/String;`.
+     * Returns the method `Lcls;->name(args)ret`, or `null` if [source] has no such method.
      */
-    fun method(rawClassName: String, shortId: String): DexMethod?
+    fun method(descriptor: String): DexMethod?
 
     /**
-     * Converts a jadx class name to a type descriptor, for example `com.foo.Bar` to `Lcom/foo/Bar;`.
+     * Returns the method of a method target, or `null` for a class target or an unknown method.
      */
-    fun descriptorOf(rawClassName: String): String = "L" + rawClassName.replace('.', '/') + ";"
+    fun method(target: EmuTarget): DexMethod?
+
+    /**
+     * Loads a dex, apk or jar file.
+     */
+    fun loadDex(file: Path): MethodSource
+
+    /**
+     * Loads a dex file from memory.
+     */
+    fun loadDex(bytes: ByteArray): MethodSource
+
+    /**
+     * An emulator with the same policy, device values and diagnostics but its own static fields.
+     *
+     * @param source code to execute, for example `emu.source + loadDex(bytes)`
+     * @param hooks hooks and stubs to use; `null` for a fresh registry
+     */
+    fun fork(source: MethodSource = this.source, hooks: Hooks? = null, limits: ExecLimits = this.limits): EmuContext
 }

@@ -29,6 +29,7 @@ dependencies {
 
     testImplementation("io.github.skylot:jadx-core:$jadxVersion")
     testImplementation("io.github.skylot:jadx-dex-input:$jadxVersion")
+    testImplementation("io.github.skylot:jadx-java-input:$jadxVersion")
     testImplementation("com.android.tools.smali:smali:3.0.9")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

@@ -3,7 +3,6 @@ package jadx.plugins.emu.host
 import jadx.api.plugins.JadxPluginContext
 import jadx.api.plugins.options.JadxPluginOptions
 import jadx.api.plugins.pass.JadxPass
-import jadx.plugins.emu.api.EmuContext
 import jadx.plugins.emu.api.EmuExtension
 import jadx.plugins.emu.api.EmuExtensionContext
 import jadx.plugins.emu.api.EmuExtensionInfo
@@ -92,7 +91,7 @@ internal class ExtensionLoader(
         }
     }
 
-    fun initAll(emu: EmuContext) {
+    fun initAll(emu: EngineEmuContext) {
         val options = this.options.host
         for (loaded in _extensions) {
             val info = loaded.info
@@ -172,7 +171,7 @@ internal class ExtensionLoader(
 
     private inner class ExtensionContextImpl(
         private val loaded: LoadedExtension,
-        override val emu: EmuContext,
+        override val emu: EngineEmuContext,
     ) : EmuExtensionContext {
         override val jadx: JadxPluginContext get() = host
         override val hooks: Hooks = emu.world.hooks.scope()

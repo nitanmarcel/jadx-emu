@@ -18,3 +18,13 @@ val UNKNOWN = UnknownVal(null)
  * Marker stored in the upper register of a wide (`long`/`double`) pair; the value lives in the lower register.
  */
 object WideHigh
+
+/**
+ * Whether this value is an [UnknownVal].
+ */
+fun Any?.isUnknown(): Boolean = this is UnknownVal
+
+internal fun defaultValueOf(type: String): Any? = when (type) {
+    "I", "B", "S", "C" -> 0; "J" -> 0L; "F" -> 0f; "D" -> 0.0; "Z" -> false
+    else -> null
+}

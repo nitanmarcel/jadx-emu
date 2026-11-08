@@ -508,18 +508,20 @@ public class Interpreter(private val vm: Vm) {
         val ref = insn.ref as MethodRef
         if (!hasReceiver) vm.ensureClinit(ref.declClass)
         val (recv, args) = gatherArgs(insn, frame, ref, hasReceiver)
-        val hooked = try { vm.hooks.runHooks(vm, ref, recv, args) } catch (t: DvmThrowable) { return routeThrow(method, insn.offset, t, frame) }
-        if (hooked != null && hooked.replaced) {
-            frame.result = retype(hooked.result, ref.returnType); frame.resultType = ref.returnType
-            return Next(pc + 1)
+        try {
+            return dispatch(method, insn, frame, pc, ref, recv, args, hasReceiver, virtual, superCall)
+        } catch (t: DvmThrowable) {
+            return routeThrow(method, insn.offset, t, frame)
         }
-        val reflected = try { tryReflect(ref, recv, args) } catch (t: DvmThrowable) { return routeThrow(method, insn.offset, t, frame) }
-        reflected?.let { (res, rt) ->
-            frame.result = res; frame.resultType = rt; return Next(pc + 1)
-        }
+    }
+
+    private fun dispatch(method: DexMethod, insn: DalvikInsn, frame: Frame, pc: Int, ref: MethodRef, recv: Any?, args: MutableList<Any?>, hasReceiver: Boolean, virtual: Boolean, superCall: Boolean): Step {
+        val before = vm.hooks.runBeforeHooks(vm, ref, recv, args)
+        if (before != null && before.replaced) return complete(frame, pc, ref, recv, args, retype(before.result, ref.returnType), ref.returnType)
+        tryReflect(ref, recv, args)?.let { (res, rt) -> return complete(frame, pc, ref, recv, args, res, rt) }
         if (ref.name == "<init>" && recv is UninitHost) {
             frame.replace(recv, vm.hostExec.construct(recv.type, ref, args))
-            return Next(pc + 1)
+            return complete(frame, pc, ref, recv, args, null, ref.returnType)
         }
         val target = when {
             superCall -> resolveVirtual(vm.source.classInfo(method.declClass)?.superType, ref.shortId)
@@ -530,7 +532,7 @@ public class Interpreter(private val vm: Vm) {
         if (target == null && vm.nativeBridge != null && vm.source.isNative(ref.declClass, ref.shortId)) {
             val sig = "(${ref.argTypes.joinToString("")})${ref.returnType}"
             val nr = vm.nativeBridge.call(ref.declClass.removePrefix("L").removeSuffix(";"), ref.name, sig, args, recv)
-            if (nr !== NotHandled) { frame.result = nr; frame.resultType = ref.returnType; return Next(pc + 1) }
+            if (nr !== NotHandled) return complete(frame, pc, ref, recv, args, nr, ref.returnType)
         }
         val result = try {
             when {
@@ -538,14 +540,17 @@ public class Interpreter(private val vm: Vm) {
                 hasReceiver -> vm.hostExec.invokeInstance(ref, recv, args)
                 else -> vm.hostExec.invokeStatic(ref, args)
             }
-        } catch (t: DvmThrowable) {
-            return routeThrow(method, insn.offset, t, frame)
         } catch (e: StubNotImplemented) {
             vm.diagnose(Diagnostic.Kind.MISSING_STUB, ref, "no stub")
             UnknownVal(ref.returnType)
         }
-        frame.result = result
-        frame.resultType = ref.returnType
+        return complete(frame, pc, ref, recv, args, result, ref.returnType)
+    }
+
+    private fun complete(frame: Frame, pc: Int, ref: MethodRef, recv: Any?, args: MutableList<Any?>, result: Any?, resultType: String?): Step {
+        val after = vm.hooks.runAfterHooks(vm, ref, recv, args, result)
+        frame.result = if (after === result) result else retype(after, ref.returnType)
+        frame.resultType = resultType
         return Next(pc + 1)
     }
 

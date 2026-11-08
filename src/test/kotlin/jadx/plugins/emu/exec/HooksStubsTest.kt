@@ -44,6 +44,21 @@ class HooksStubsTest {
             invoke-virtual {p0}, Ljava/lang/String;->toUpperCase()Ljava/lang/String;
             move-result-object p0
             return-object p0
+        """) + staticMethod("boom()I", 2, """
+            new-instance v0, Ljava/lang/IllegalStateException;
+            invoke-direct {v0}, Ljava/lang/IllegalStateException;-><init>()V
+            throw v0
+        """) + staticMethod("safe()I", 2, """
+            :try
+            invoke-static {}, LT;->boom()I
+            move-result v0
+            :end
+            return v0
+            :catch
+            move-exception v0
+            const/4 v0, -1
+            return v0
+            .catch Ljava/lang/IllegalStateException; {:try .. :end} :catch
         """) + staticMethod("log(Ljava/lang/String;)I", 2, """
             const-string v0, "tag"
             invoke-static {v0, p0}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
@@ -83,6 +98,31 @@ class HooksStubsTest {
         val hooks = Hooks()
         hooks.hook("$c->twice") { args[0] = 10 }
         assertEquals(21, TestDex.call(TestDex.vm(source, hooks = hooks), source, c, "f(I)I", 7))
+    }
+
+    @Test
+    fun afterHookSeesAndRewritesResult() {
+        val hooks = Hooks()
+        val seen = ArrayList<Any?>()
+        hooks.hookAfter("$c->twice(I)I") { seen.add(result); replace((result as Int) + 1) }
+        hooks.hookAfter("Ljava/lang/String;->toUpperCase()Ljava/lang/String;") { replace(result.toString() + "!") }
+        val vm = TestDex.vm(source, hooks = hooks)
+        assertEquals(16, TestDex.call(vm, source, c, "f(I)I", 7))
+        assertEquals(listOf<Any?>(14), seen)
+        assertEquals("ABC!", TestDex.call(vm, source, c, "upper(Ljava/lang/String;)Ljava/lang/String;", "abc"))
+    }
+
+    @Test
+    fun afterHookRunsAfterBeforeHookAndNotOnThrow() {
+        val hooks = Hooks()
+        val order = ArrayList<String>()
+        hooks.hook("$c->twice") { order.add("before"); replace(10) }
+        hooks.hookAfter("$c->twice") { order.add("after " + result) }
+        hooks.hookAfter("$c->boom") { order.add("boom") }
+        val vm = TestDex.vm(source, hooks = hooks)
+        assertEquals(11, TestDex.call(vm, source, c, "f(I)I", 7))
+        assertEquals(-1, TestDex.call(vm, source, c, "safe()I"))
+        assertEquals(listOf("before", "after 10"), order)
     }
 
     @Test

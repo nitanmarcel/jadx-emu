@@ -14,12 +14,18 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * A method call seen by a [MethodHandler].
+ * A method call seen by a [MethodHandler]; in [Hooks.hookAfter] handlers [result] is the value the call returned.
  */
-public class MethodCall(public val vm: Vm, public val method: MethodRef, public val receiver: Any?, public val args: MutableList<Any?>) {
+public class MethodCall internal constructor(
+    public val vm: Vm,
+    public val method: MethodRef,
+    public val receiver: Any?,
+    public val args: MutableList<Any?>,
+    result: Any?,
+) {
     public var replaced: Boolean = false
         private set
-    public var result: Any? = null
+    public var result: Any? = result
         private set
 
     /**
@@ -85,7 +91,8 @@ public class Hooks private constructor(public val env: AndroidEnv, private val p
 
     private val root: Hooks = parent?.root ?: this
     private val counter = AtomicInteger(0)
-    private val hooks = ConcurrentHashMap<String, CopyOnWriteArrayList<Entry>>()
+    private val beforeHooks = ConcurrentHashMap<String, CopyOnWriteArrayList<Entry>>()
+    private val afterHooks = ConcurrentHashMap<String, CopyOnWriteArrayList<Entry>>()
     private val stubs = ConcurrentHashMap<String, CopyOnWriteArrayList<Entry>>()
     private val fields = ConcurrentHashMap<String, CopyOnWriteArrayList<Entry>>()
 
@@ -99,7 +106,12 @@ public class Hooks private constructor(public val env: AndroidEnv, private val p
     /**
      * Run [handler] before every call matching [pattern].
      */
-    public fun hook(pattern: String, handler: MethodHandler): Registration = add(root.hooks, pattern, handler, null)
+    public fun hook(pattern: String, handler: MethodHandler): Registration = add(root.beforeHooks, pattern, handler, null)
+
+    /**
+     * Run [handler] after every call matching [pattern] that returned normally.
+     */
+    public fun hookAfter(pattern: String, handler: MethodHandler): Registration = add(root.afterHooks, pattern, handler, null)
 
     /**
      * Implement a framework or host method matching [pattern].
@@ -121,7 +133,7 @@ public class Hooks private constructor(public val env: AndroidEnv, private val p
      */
     public fun clear() {
         val mine: (Entry) -> Boolean = if (parent == null) { e -> !e.builtin } else { e -> e.owner === this }
-        for (map in listOf(root.hooks, root.stubs, root.fields)) for (list in map.values) list.removeIf(mine)
+        for (map in listOf(root.beforeHooks, root.afterHooks, root.stubs, root.fields)) for (list in map.values) list.removeIf(mine)
     }
 
     /**
@@ -129,11 +141,16 @@ public class Hooks private constructor(public val env: AndroidEnv, private val p
      */
     public fun isFrameworkClass(declClass: String): Boolean = FRAMEWORK_PREFIXES.any { declClass.startsWith(it) }
 
-    internal fun runHooks(vm: Vm, ref: MethodRef, receiver: Any?, args: MutableList<Any?>): MethodCall? {
-        val entries = root.matching(root.hooks, ref) ?: return null
-        val call = MethodCall(vm, ref, receiver, args)
+    internal fun runBeforeHooks(vm: Vm, ref: MethodRef, receiver: Any?, args: MutableList<Any?>): MethodCall? =
+        runHooks(root.beforeHooks, MethodCall(vm, ref, receiver, args, null))
+
+    internal fun runAfterHooks(vm: Vm, ref: MethodRef, receiver: Any?, args: MutableList<Any?>, result: Any?): Any? =
+        runHooks(root.afterHooks, MethodCall(vm, ref, receiver, args, result)).let { if (it == null) result else it.result }
+
+    private fun runHooks(map: ConcurrentHashMap<String, CopyOnWriteArrayList<Entry>>, call: MethodCall): MethodCall? {
+        val entries = root.matching(map, call.method) ?: return null
         for (e in entries) {
-            if (!run(e, call)) call.replace(UnknownVal(ref.returnType))
+            if (!run(e, call)) call.replace(UnknownVal(call.method.returnType))
             if (call.replaced) break
         }
         return call
@@ -142,7 +159,7 @@ public class Hooks private constructor(public val env: AndroidEnv, private val p
     internal fun runStubs(vm: Vm, ref: MethodRef, receiver: Any?, args: List<Any?>): Any? {
         val entries = root.matching(root.stubs, ref)
         if (entries != null) {
-            val call = MethodCall(vm, ref, receiver, args.toMutableList())
+            val call = MethodCall(vm, ref, receiver, args.toMutableList(), null)
             for (e in entries) {
                 if (!run(e, call)) return UnknownVal(ref.returnType)
                 if (call.replaced) return call.result

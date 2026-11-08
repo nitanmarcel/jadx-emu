@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "io.github.nitanmarcel"
-version = "0.1.0-beta.6"
+version = "0.1.0-beta.7"
 
 repositories {
     mavenCentral()

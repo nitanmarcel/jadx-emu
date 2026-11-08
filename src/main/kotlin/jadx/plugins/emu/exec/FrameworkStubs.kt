@@ -9,22 +9,22 @@ import java.io.File
  *
  * Provides class hierarchy and method signatures only; behaviour comes from [Hooks] stubs.
  */
-object FrameworkStubs {
+internal object FrameworkStubs {
 
     /**
      * Signature-only source for the framework, or null if the stub jar could not be loaded.
      */
-    val source: MethodSource? by lazy { loadFromResource() }
+    internal val source: MethodSource? by lazy { loadFromResource() }
 
     /**
      * Framework method signature, or null if unknown.
      */
-    fun method(classDesc: String, shortId: String): DexMethod? = source?.method(classDesc, shortId)
+    internal fun method(classDesc: String, shortId: String): DexMethod? = source?.method(classDesc, shortId)
 
     /**
      * Whether [classDesc] is a framework class.
      */
-    fun hasClass(classDesc: String): Boolean = source?.classInfo(classDesc) != null
+    internal fun hasClass(classDesc: String): Boolean = source?.classInfo(classDesc) != null
 
     private fun loadFromResource(): MethodSource? = runCatching {
         val stream = FrameworkStubs::class.java.getResourceAsStream("/framework/android-13-stub.jar") ?: return null

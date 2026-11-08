@@ -16,7 +16,7 @@ import java.lang.reflect.Modifier
  * only if [policy] allows that member and all arguments are concrete host values. Anything else yields an
  * [UnknownVal].
  */
-class HostExec(
+internal class HostExec(
     private val policy: HostBoundary,
     private val vm: Vm,
     private val report: (Kind, MethodRef, String) -> Unit = { _, _, _ -> },
@@ -25,7 +25,7 @@ class HostExec(
     /**
      * Invoke a static method.
      */
-    fun invokeStatic(ref: MethodRef, args: List<Any?>): Any? {
+    internal fun invokeStatic(ref: MethodRef, args: List<Any?>): Any? {
         val sv = vm.hooks.runStubs(vm, ref, null, args)
         if (sv !== NotHandled) return sv
         if (!argsUsable(args)) return unknown(Kind.HOST_UNKNOWN_INPUT, ref, ref.returnType, UNKNOWN_ARGS)
@@ -38,7 +38,7 @@ class HostExec(
     /**
      * Invoke an instance method on a host object.
      */
-    fun invokeInstance(ref: MethodRef, receiver: Any?, args: List<Any?>): Any? {
+    internal fun invokeInstance(ref: MethodRef, receiver: Any?, args: List<Any?>): Any? {
         val sv = vm.hooks.runStubs(vm, ref, receiver, args)
         if (sv !== NotHandled) return sv
         if (!usable(receiver)) return unknown(Kind.HOST_UNKNOWN_INPUT, ref, ref.returnType, UNKNOWN_RECEIVER)
@@ -55,7 +55,7 @@ class HostExec(
     /**
      * Instantiate host class [type] using the constructor described by [ref].
      */
-    fun construct(type: String, ref: MethodRef, args: List<Any?>): Any? {
+    internal fun construct(type: String, ref: MethodRef, args: List<Any?>): Any? {
         if (!argsUsable(args)) return unknown(Kind.HOST_UNKNOWN_INPUT, ref, type, UNKNOWN_ARGS)
         val ctor = runCatching { hostClass(type).getDeclaredConstructor(*paramClasses(ref.argTypes)) }
             .getOrElse { return notFound(ref, type) }
@@ -69,7 +69,7 @@ class HostExec(
     /**
      * Run [m], already resolved by the caller, under the policy.
      */
-    fun invokeResolved(m: Method, receiver: Any?, args: List<Any?>, returnType: String): Any? {
+    internal fun invokeResolved(m: Method, receiver: Any?, args: List<Any?>, returnType: String): Any? {
         val types = m.parameterTypes.map { classDesc(it) }
         val ref = MethodRef(classDesc(m.declaringClass), m.name, types, returnType)
         if (!Modifier.isStatic(m.modifiers) && !usable(receiver)) return unknown(Kind.HOST_UNKNOWN_INPUT, ref, returnType, UNKNOWN_RECEIVER)
@@ -147,7 +147,7 @@ class HostExec(
  *
  * @throws ClassNotFoundException if the class is not on the host classpath
  */
-fun hostClass(desc: String): Class<*> = when (desc) {
+internal fun hostClass(desc: String): Class<*> = when (desc) {
     "I" -> Integer.TYPE; "J" -> java.lang.Long.TYPE; "Z" -> java.lang.Boolean.TYPE
     "B" -> java.lang.Byte.TYPE; "C" -> Character.TYPE; "S" -> java.lang.Short.TYPE
     "F" -> java.lang.Float.TYPE; "D" -> java.lang.Double.TYPE; "V" -> Void.TYPE

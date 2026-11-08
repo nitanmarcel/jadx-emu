@@ -31,7 +31,7 @@ import kotlin.io.path.listDirectoryEntries
  * Extensions are read from `extensions/` in the plugin's configuration directory. Options are published
  * under the `jadx-emu.` prefix and can be set with `-P` in jadx-cli or in the jadx-gui preferences.
  */
-class JadxEmuPlugin : JadxPlugin {
+public class JadxEmuPlugin : JadxPlugin {
 
     private val options = EmuOptions()
     private val allOptions = CompositeOptions(options)
@@ -141,7 +141,7 @@ class JadxEmuPlugin : JadxPlugin {
         return FileUtils.md5Sum("${EmuVersion.current}|${allOptions.valuesHash(values)}|$jars")
     }
 
-    companion object {
+    internal companion object {
         const val PLUGIN_ID = "jadx-emu"
         const val EXTENSIONS_DIR = "extensions"
         const val DATA_DIR = "data"

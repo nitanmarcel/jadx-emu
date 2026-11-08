@@ -9,7 +9,7 @@ import jadx.plugins.emu.exec.model.MethodRef
  *
  * @property desc descriptor of the class
  */
-data class DvmClass(val desc: String)
+public data class DvmClass(val desc: String)
 
 /**
  * Emulated `java.lang.reflect.Method` value.
@@ -21,7 +21,7 @@ data class DvmClass(val desc: String)
  * @property hostMethod the JVM method, if the target is a host class
  * @property symbol the reference as named by the reflective lookup
  */
-data class DvmMethodHandle(val dexMethod: DexMethod?, val hostMethod: java.lang.reflect.Method?, val symbol: MethodRef? = null)
+public data class DvmMethodHandle @JvmOverloads constructor(val dexMethod: DexMethod?, val hostMethod: java.lang.reflect.Method?, val symbol: MethodRef? = null)
 
 /**
  * Emulated `java.lang.reflect.Constructor` value.
@@ -29,11 +29,11 @@ data class DvmMethodHandle(val dexMethod: DexMethod?, val hostMethod: java.lang.
  * @property owner descriptor of the class being constructed
  * @property params parameter type descriptors as named by the reflective lookup
  */
-data class DvmCtorHandle(val owner: String, val params: List<String>)
+public data class DvmCtorHandle(val owner: String, val params: List<String>)
 
 /**
  * Emulated `java.lang.reflect.Field` value.
  *
  * @property accessFlags `java.lang.reflect.Modifier` bits, or 0 when unknown
  */
-data class DvmField(val ref: FieldRef, val isStatic: Boolean, val accessFlags: Int = 0)
+public data class DvmField @JvmOverloads constructor(val ref: FieldRef, val isStatic: Boolean, val accessFlags: Int = 0)

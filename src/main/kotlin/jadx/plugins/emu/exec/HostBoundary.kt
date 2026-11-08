@@ -18,7 +18,7 @@ import java.lang.reflect.Field
  *
  * Signatures use the forbidden-apis syntax; see [SignatureSet].
  */
-class HostBoundary(
+public class HostBoundary @JvmOverloads constructor(
     private val deny: SignatureSet = SignatureSet.EMPTY,
     private val allow: SignatureSet = SignatureSet.EMPTY,
     private val restrictRandom: Boolean = true,
@@ -39,17 +39,19 @@ class HostBoundary(
     /**
      * Whether any member of [cls] may run.
      */
-    fun canHandle(cls: Class<*>): Boolean = enabled && inNamespace(cls) && (!denied.matchesClass(cls) || allow.matchesClass(cls))
+    public fun canHandle(cls: Class<*>): Boolean = enabled && inNamespace(cls) && (!denied.matchesClass(cls) || allow.matchesClass(cls))
 
     /**
      * Whether [m] may run, optionally dispatched on an instance of [receiverClass].
      */
-    fun canExecute(m: Executable, receiverClass: Class<*>? = null): Boolean = denial(m, receiverClass) == null
+    @JvmOverloads
+    public fun canExecute(m: Executable, receiverClass: Class<*>? = null): Boolean = denial(m, receiverClass) == null
 
     /**
      * Why [m] may not run, or null if it may.
      */
-    fun denial(m: Executable, receiverClass: Class<*>? = null): String? = when {
+    @JvmOverloads
+    public fun denial(m: Executable, receiverClass: Class<*>? = null): String? = when {
         !enabled -> DISABLED
         !inNamespace(m.declaringClass) -> OUTSIDE_NAMESPACE
         denied.matches(m, receiverClass) && !allow.matches(m, receiverClass) -> DENIED
@@ -59,47 +61,51 @@ class HostBoundary(
     /**
      * Whether static field [f] may be read.
      */
-    fun canRead(f: Field): Boolean = enabled && inNamespace(f.declaringClass) && (!denied.matches(f) || allow.matches(f))
+    public fun canRead(f: Field): Boolean = enabled && inNamespace(f.declaringClass) && (!denied.matches(f) || allow.matches(f))
 
     /**
      * Entries re-enabled through [allow], for reporting at startup.
      */
-    fun reallowed(): List<String> = allow.entries()
+    public fun reallowed(): List<String> = allow.entries()
 
     /**
      * Whether [cls] is under `java.` or `javax.crypto.`, the only packages host execution may touch.
      */
-    fun inNamespace(cls: Class<*>): Boolean {
+    public fun inNamespace(cls: Class<*>): Boolean {
         val n = cls.name
         return n.startsWith("java.") || n.startsWith("javax.crypto.")
     }
 
-    companion object {
-        const val DISABLED = "host execution disabled"
-        const val OUTSIDE_NAMESPACE = "outside host namespace"
-        const val DENIED = "denied by host policy"
+    public companion object {
+        public const val DISABLED: String = "host execution disabled"
+        public const val OUTSIDE_NAMESPACE: String = "outside host namespace"
+        public const val DENIED: String = "denied by host policy"
 
         /**
          * Policy that denies all host execution.
          */
-        fun disabled(): HostBoundary = HostBoundary(enabled = false)
+        @JvmStatic
+        public fun disabled(): HostBoundary = HostBoundary(enabled = false)
 
         /**
          * Text of a bundled signature file (`emu-unsafe`, `emu-random`, `emu-time`, `emu-env`), or null.
          */
-        fun bundledText(name: String): String? =
+        @JvmStatic
+        public fun bundledText(name: String): String? =
             HostBoundary::class.java.getResourceAsStream("/host/policy/$name.txt")?.use { it.readBytes().decodeToString() }
 
         /**
          * Parse signatures in the forbidden-apis syntax, resolving `@includeBundled` against the bundled files.
          */
-        fun parse(text: String): SignatureSet = SignatureSet.parse(text, ::bundledText)
+        @JvmStatic
+        public fun parse(text: String): SignatureSet = SignatureSet.parse(text, ::bundledText)
 
         /**
          * Instance methods whose result depends only on the receiver, so a call on a known receiver
          * can be folded to a constant.
          */
-        val PURE_ACCESSORS = setOf(
+        @JvmField
+        public val PURE_ACCESSORS: Set<String> = setOf(
             "Ljava/lang/Class;->getName", "Ljava/lang/Class;->getSimpleName",
             "Ljava/lang/Class;->getCanonicalName", "Ljava/lang/Class;->getTypeName",
             "Ljava/lang/String;->hashCode", "Ljava/lang/String;->length", "Ljava/lang/String;->isEmpty",

@@ -3,7 +3,7 @@ package jadx.plugins.emu.exec.model
 /**
  * A constant-pool item referenced by an instruction.
  */
-sealed interface InsnRef
+public sealed interface InsnRef
 
 /**
  * Reference to a method.
@@ -14,7 +14,7 @@ sealed interface InsnRef
  * @property returnType return type descriptor
  * @property shortId `name(argTypes)returnType`, the key used by [jadx.plugins.emu.exec.MethodSource]
  */
-data class MethodRef(
+public data class MethodRef(
     val declClass: String,
     val name: String,
     val argTypes: List<String>,
@@ -26,12 +26,12 @@ data class MethodRef(
         append(')'); append(returnType)
     }
 
-    companion object {
+    public companion object {
         /**
          * Parse `shortId` (`name(args)ret`) into a reference on [declClass].
          */
         @JvmStatic
-        fun of(declClass: String, shortId: String): MethodRef {
+        public fun of(declClass: String, shortId: String): MethodRef {
             val open = shortId.indexOf('(')
             val close = shortId.indexOf(')', open + 1)
             require(open > 0 && close > open) { "malformed method id: $shortId" }
@@ -61,7 +61,7 @@ data class MethodRef(
  * @property type field type descriptor
  * @property key `declClass.name`, the key used for static and instance field storage
  */
-data class FieldRef(val declClass: String, val name: String, val type: String) : InsnRef {
+public data class FieldRef(val declClass: String, val name: String, val type: String) : InsnRef {
     val key: String = "$declClass.$name"
 }
 
@@ -70,12 +70,12 @@ data class FieldRef(val declClass: String, val name: String, val type: String) :
  *
  * @property desc type descriptor
  */
-data class TypeRef(val desc: String) : InsnRef
+public data class TypeRef(val desc: String) : InsnRef
 
 /**
  * A string constant (`const-string`).
  */
-data class StringRef(val value: String) : InsnRef
+public data class StringRef(val value: String) : InsnRef
 
 /**
  * An `invoke-custom` call site.
@@ -86,7 +86,7 @@ data class StringRef(val value: String) : InsnRef
  * @property argTypes dynamic argument type descriptors
  * @property returnType return type descriptor
  */
-data class CallSiteRef(
+public data class CallSiteRef(
     val name: String,
     val recipe: String?,
     val constants: List<Any?>,

@@ -22,16 +22,16 @@ import java.util.concurrent.CopyOnWriteArrayList
  * @property host which JVM classes emulated code may execute
  * @property hooks method hooks, framework stubs and device environment shared by VMs built here
  */
-class EngineContext(
+public class EngineContext @JvmOverloads constructor(
     private val source: MethodSource,
-    val limits: ExecLimits = ExecLimits(),
-    val host: HostBoundary = HostBoundary(),
-    val hooks: Hooks = Hooks(),
+    public val limits: ExecLimits = ExecLimits(),
+    public val host: HostBoundary = HostBoundary(),
+    public val hooks: Hooks = Hooks(),
 ) {
     /**
      * Sinks receiving [Diagnostic]s from every VM built on this context; [LogSink] is registered by default.
      */
-    val diagnostics: MutableList<DiagnosticSink> = CopyOnWriteArrayList(listOf(LogSink()))
+    public val diagnostics: MutableList<DiagnosticSink> = CopyOnWriteArrayList(listOf(LogSink()))
 
     /**
      * A VM over this context's source, policy and environment.
@@ -41,7 +41,8 @@ class EngineContext(
      * @param diagnostics sinks for this VM, by default the context-wide ones
      * @param nativeBridge services `native` method calls (e.g. a replay table or an emulator backend); null = none
      */
-    fun newVm(
+    @JvmOverloads
+    public fun newVm(
         limits: ExecLimits = this.limits,
         hook: ExecHook? = null,
         hooks: Hooks = this.hooks,
@@ -51,12 +52,13 @@ class EngineContext(
         nativeBridge: NativeBridge? = null,
     ): Vm = Vm(source, host, limits, hook, nativeBridge, hooks, this, statics, androidEnvUnknown, diagnostics)
 
-    companion object {
+    public companion object {
         /**
          * Descriptors of mutable collection and builder types. Fields of these types are treated as
          * unknown by abstract analyses because their contents can change between reads.
          */
-        val MUTABLE_CONTAINER_TYPES: Set<String> = setOf(
+        @JvmField
+        public val MUTABLE_CONTAINER_TYPES: Set<String> = setOf(
             "Ljava/util/Collection;", "Ljava/util/List;", "Ljava/util/ArrayList;", "Ljava/util/LinkedList;",
             "Ljava/util/Vector;", "Ljava/util/Stack;", "Ljava/util/AbstractList;", "Ljava/util/AbstractCollection;",
             "Ljava/util/Set;", "Ljava/util/HashSet;", "Ljava/util/LinkedHashSet;", "Ljava/util/TreeSet;", "Ljava/util/AbstractSet;",
@@ -78,7 +80,7 @@ class EngineContext(
      * initializer touched other classes' static state, or if a value cannot be copied.
      */
     @Synchronized
-    fun clinitStaticsFor(desc: String): HashMap<String, Any?>? {
+    public fun clinitStaticsFor(desc: String): HashMap<String, Any?>? {
         if (source.classInfo(desc) == null) return null
         if (!snapshots.containsKey(desc)) snapshots[desc] = computeSnapshot(desc)
         val base = snapshots[desc] ?: return null
@@ -112,7 +114,7 @@ class EngineContext(
      * Keys of fields written anywhere other than `<clinit>` (static) or `<init>` (instance).
      * Reads of these fields are treated as unknown by abstract analyses.
      */
-    val mutableFields: Set<String> by lazy {
+    public val mutableFields: Set<String> by lazy {
         val out = HashSet<String>()
         for (m in source.allMethods()) {
             val n = m.ref.name

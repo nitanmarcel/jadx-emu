@@ -17,10 +17,10 @@ import jadx.plugins.emu.exec.runtime.WideHigh
  *   a single-element set means the branch is decided
  * @property visitedOffsets offsets of every instruction reached on some path
  */
-class TraceFacts(
-    val complete: Boolean,
-    val takenTargets: Map<Int, Set<Int>>,
-    val visitedOffsets: Set<Int>,
+internal class TraceFacts(
+    internal val complete: Boolean,
+    internal val takenTargets: Map<Int, Set<Int>>,
+    internal val visitedOffsets: Set<Int>,
 )
 
 /**
@@ -30,7 +30,7 @@ class TraceFacts(
  * can decide branches that depend on path-specific constants. Only host calls are followed; application
  * calls and heap reads yield unknown values. Intended for control-flow questions, not value recovery.
  */
-class PreciseTrace(private val vm: Vm) {
+internal class PreciseTrace(private val vm: Vm) {
 
     private val interp = Interpreter(vm)
 
@@ -54,7 +54,7 @@ class PreciseTrace(private val vm: Vm) {
     /**
      * Explore all paths through [method] starting with unknown parameters.
      */
-    fun trace(method: DexMethod): TraceFacts {
+    internal fun trace(method: DexMethod): TraceFacts {
         runCatching { vm.ensureClinit(method.declClass) }
         vm.startDeadline()
         val insns = method.insns

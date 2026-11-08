@@ -1,3 +1,5 @@
+@file:JvmName("MethodSources")
+
 package jadx.plugins.emu.exec
 
 import jadx.plugins.emu.exec.model.DexMethod
@@ -5,7 +7,7 @@ import jadx.plugins.emu.exec.model.DexMethod
 /**
  * A [MethodSource] that looks classes up in [layers] in order, first hit wins.
  */
-class LayeredSource(val layers: List<MethodSource>) : MethodSource {
+public class LayeredSource(public val layers: List<MethodSource>) : MethodSource {
     override fun method(classDesc: String, shortId: String): DexMethod? =
         layers.firstNotNullOfOrNull { it.method(classDesc, shortId) }
 
@@ -34,7 +36,7 @@ class LayeredSource(val layers: List<MethodSource>) : MethodSource {
 /**
  * This source with [other] behind it: classes present in both come from this one.
  */
-operator fun MethodSource.plus(other: MethodSource): MethodSource {
+public operator fun MethodSource.plus(other: MethodSource): MethodSource {
     val a = if (this is LayeredSource) layers else listOf(this)
     val b = if (other is LayeredSource) other.layers else listOf(other)
     return LayeredSource(a + b)

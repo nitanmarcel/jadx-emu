@@ -6,48 +6,50 @@ import jadx.api.plugins.options.JadxPluginOptions
 import jadx.api.plugins.pass.JadxPass
 import org.slf4j.Logger
 import java.nio.file.Path
+import java.util.function.Consumer
+import java.util.function.Predicate
 
 /**
  * Services available to an [EmuExtension] during and after [EmuExtension.init].
  *
  * A context is created for each extension on each project load and is valid until [EmuExtension.unload].
  */
-interface EmuExtensionContext {
+public interface EmuExtensionContext {
 
     /**
      * The jadx plugin context of jadx-emu: decompiler, arguments, events and resource loader.
      */
-    val jadx: JadxPluginContext
+    public val jadx: JadxPluginContext
 
     /**
      * The jadx GUI context, or `null` when jadx runs without a user interface.
      *
      * This is `null` in jadx-cli and while jadx-gui collects plugin options.
      */
-    val gui: JadxGuiContext?
+    public val gui: JadxGuiContext?
         get() = jadx.guiContext
 
     /**
      * The emulator for the loaded application.
      */
-    val emu: EmuContext
+    public val emu: EmuContext
 
     /**
      * Hooks and stubs registered by this extension.
      */
-    val hooks: Hooks
+    public val hooks: Hooks
 
     /**
      * Logger named `jadx-emu.<extension id>`.
      */
-    val log: Logger
+    public val log: Logger
 
     /**
      * Directory for files owned by this extension. Created on first access.
      *
      * The directory is shared by all projects; use [targets] for per-project state.
      */
-    val dataDir: Path
+    public val dataDir: Path
 
     /**
      * Targets selected for this extension.
@@ -57,7 +59,7 @@ interface EmuExtensionContext {
      *
      * @see ExtensionMode.ON_DEMAND
      */
-    val targets: TargetStore
+    public val targets: TargetStore
 
     /**
      * Registers a jadx pass for the current project load.
@@ -65,7 +67,7 @@ interface EmuExtensionContext {
      * Accepts prepare, decompile and after-load passes. Passes registered after [EmuExtension.init] returns
      * are ignored by jadx.
      */
-    fun addPass(pass: JadxPass)
+    public fun addPass(pass: JadxPass)
 
     /**
      * Adds an entry to the context menu of the code viewer.
@@ -78,7 +80,11 @@ interface EmuExtensionContext {
      * @param name Text of the menu entry.
      * @param keyBinding Shortcut in the format accepted by [javax.swing.KeyStroke.getKeyStroke], or `null`.
      */
-    fun addCodeAction(name: String, enabled: ((EmuTarget) -> Boolean)? = null, keyBinding: String? = null, action: (EmuTarget) -> Unit)
+    public fun addCodeAction(name: String, enabled: Predicate<EmuTarget>?, keyBinding: String?, action: Consumer<EmuTarget>)
+
+    public fun addCodeAction(name: String, action: Consumer<EmuTarget>): Unit = addCodeAction(name, null, null, action)
+
+    public fun addCodeAction(name: String, keyBinding: String?, action: Consumer<EmuTarget>): Unit = addCodeAction(name, null, keyBinding, action)
 
     /**
      * Adds a context menu entry that adds or removes the target under the mouse in [targets] and then
@@ -93,8 +99,8 @@ interface EmuExtensionContext {
      * ```
      * The change is logged at INFO level.
      */
-    fun addTargetToggleAction(name: String, keyBinding: String? = null) {
-        addCodeAction(name, keyBinding = keyBinding) { t ->
+    public fun addTargetToggleAction(name: String, keyBinding: String?) {
+        addCodeAction(name, keyBinding) { t ->
             val selected = targets.toggle(t)
             log.info("{} {}", if (selected) "selected" else "deselected", t)
             reloadActiveTab()
@@ -105,7 +111,9 @@ interface EmuExtensionContext {
      * Decompiles the class shown in the active tab again, running all passes on it.
      * Does nothing when [gui] is `null`.
      */
-    fun reloadActiveTab() {
+    public fun addTargetToggleAction(name: String): Unit = addTargetToggleAction(name, null)
+
+    public fun reloadActiveTab() {
         gui?.reloadActiveTab()
     }
 
@@ -129,5 +137,7 @@ interface EmuExtensionContext {
      *
      * @param perProject When `true`, jadx-gui stores the values in the project file instead of the global settings.
      */
-    fun registerOptions(options: JadxPluginOptions, perProject: Boolean = true)
+    public fun registerOptions(options: JadxPluginOptions, perProject: Boolean)
+
+    public fun registerOptions(options: JadxPluginOptions): Unit = registerOptions(options, true)
 }

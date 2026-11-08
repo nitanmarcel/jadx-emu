@@ -30,6 +30,7 @@ dependencies {
     testImplementation("io.github.skylot:jadx-core:$jadxVersion")
     testImplementation("io.github.skylot:jadx-dex-input:$jadxVersion")
     testImplementation("io.github.skylot:jadx-java-input:$jadxVersion")
+    testImplementation("org.slf4j:slf4j-api:2.0.17")
     testImplementation("com.android.tools.smali:smali:3.0.9")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -47,6 +48,7 @@ java {
 }
 
 kotlin {
+    explicitApi()
     compilerOptions {
         jvmTarget = JvmTarget.JVM_21
     }

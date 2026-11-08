@@ -10,26 +10,26 @@ import jadx.plugins.emu.exec.runtime.WideHigh
  * @property resultType descriptor of [result]
  * @property pendingException exception delivered to a handler, consumed by `move-exception`
  */
-class Frame(size: Int) {
-    val regs: Array<Any?> = arrayOfNulls(size)
-    var result: Any? = null
-    var resultType: String? = null
-    var pendingException: Any? = null
+public class Frame(size: Int) {
+    public val regs: Array<Any?> = arrayOfNulls(size)
+    public var result: Any? = null
+    public var resultType: String? = null
+    public var pendingException: Any? = null
 
     /**
      * Read register [r].
      */
-    fun get(r: Int): Any? = regs[r]
+    public fun get(r: Int): Any? = regs[r]
 
     /**
      * Write a non-wide value to register [r].
      */
-    fun set(r: Int, v: Any?) { regs[r] = v }
+    public fun set(r: Int, v: Any?) { regs[r] = v }
 
     /**
      * Write a wide value to the register pair starting at [r].
      */
-    fun setWide(r: Int, v: Any?) {
+    public fun setWide(r: Int, v: Any?) {
         regs[r] = v
         if (r + 1 < regs.size) regs[r + 1] = WideHigh
     }
@@ -38,7 +38,7 @@ class Frame(size: Int) {
      * Replace every register holding exactly [old] (by identity) with [new].
      * Used when an [jadx.plugins.emu.exec.runtime.UninitHost] placeholder becomes a real object.
      */
-    fun replace(old: Any?, new: Any?) {
+    public fun replace(old: Any?, new: Any?) {
         if (old == null) return
         for (i in regs.indices) if (regs[i] === old) regs[i] = new
     }

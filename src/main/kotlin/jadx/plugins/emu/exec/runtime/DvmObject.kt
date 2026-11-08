@@ -8,8 +8,8 @@ package jadx.plugins.emu.exec.runtime
  * @property type descriptor of the runtime class
  * @property fields instance field values keyed by [jadx.plugins.emu.exec.model.FieldRef.key]
  */
-class DvmObject(val type: String) {
-    val fields = HashMap<String, Any?>()
+public class DvmObject(public val type: String) {
+    public val fields: MutableMap<String, Any?> = HashMap()
 }
 
 /**
@@ -18,7 +18,7 @@ class DvmObject(val type: String) {
  *
  * @property type descriptor of the class
  */
-class UninitHost(val type: String)
+public class UninitHost(public val type: String)
 
 /**
  * An exception raised inside emulated code and not caught by it.
@@ -26,9 +26,9 @@ class UninitHost(val type: String)
  * @property type descriptor of the thrown exception class
  * @property obj the emulated exception object (a [DvmObject] or host `Throwable`), if available
  */
-class DvmThrowable(val type: String, message: String?, val obj: Any? = null) : RuntimeException(message)
+public class DvmThrowable @JvmOverloads constructor(public val type: String, message: String?, public val obj: Any? = null) : RuntimeException(message)
 
 /**
  * Static-initializer state of a class inside a [jadx.plugins.emu.exec.Vm].
  */
-enum class ClinitState { RUNNING, DONE }
+public enum class ClinitState { RUNNING, DONE }

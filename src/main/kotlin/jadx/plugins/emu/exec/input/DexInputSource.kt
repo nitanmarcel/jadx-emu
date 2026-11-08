@@ -40,7 +40,7 @@ import java.util.zip.ZipFile
  * Instances are immutable once built; use [load] for application code and [loadFramework] for
  * signature-only class libraries.
  */
-class DexInputSource private constructor(
+public class DexInputSource private constructor(
     private val byShortId: Map<Pair<String, String>, DexMethod>,
     private val classes: Map<String, ClassInfo>,
     private val byClass: Map<String, List<DexMethod>>,
@@ -54,7 +54,7 @@ class DexInputSource private constructor(
     override fun isNative(classDesc: String, shortId: String): Boolean = (classDesc to shortId) in nativeMethods
     override fun allMethods(): List<DexMethod> = byShortId.values.toList()
 
-    companion object {
+    public companion object {
         private val LOG = org.slf4j.LoggerFactory.getLogger(DexInputSource::class.java)
         private const val ACC_STATIC = 0x8
         private const val ACC_INTERFACE = 0x200
@@ -65,12 +65,14 @@ class DexInputSource private constructor(
         /**
          * Load all code from [input], which may be a `.dex` file or a zip/apk containing `classes*.dex` entries.
          */
-        fun load(input: File): DexInputSource = load(listOf(input))
+        @JvmStatic
+        public fun load(input: File): DexInputSource = load(listOf(input))
 
         /**
          * Load and merge code from several inputs; see [load].
          */
-        fun load(inputs: List<File>): DexInputSource {
+        @JvmStatic
+        public fun load(inputs: List<File>): DexInputSource {
             val all = inputs.map { dexPaths(it) }
             try {
                 return fromLoader(DexInputPlugin().loadFiles(all.flatMap { it.first }), signaturesOnly = false)
@@ -82,7 +84,8 @@ class DexInputSource private constructor(
         /**
          * Load class hierarchy and method signatures (no bodies) from a jar of `.class` files.
          */
-        fun loadFramework(jar: File): DexInputSource =
+        @JvmStatic
+        public fun loadFramework(jar: File): DexInputSource =
             fromLoader(JavaInputPlugin.loadClassFiles(listOf(jar.toPath())), signaturesOnly = true)
 
         /**
@@ -91,7 +94,9 @@ class DexInputSource private constructor(
          *
          * @param signaturesOnly skip instruction decoding; methods will have empty bodies
          */
-        fun fromClasses(classes: Iterable<IClassData>, signaturesOnly: Boolean = false): DexInputSource {
+        @JvmStatic
+        @JvmOverloads
+        public fun fromClasses(classes: Iterable<IClassData>, signaturesOnly: Boolean = false): DexInputSource {
             val byShortId = HashMap<Pair<String, String>, DexMethod>()
             val classInfos = HashMap<String, ClassInfo>()
             val byClass = HashMap<String, List<DexMethod>>()

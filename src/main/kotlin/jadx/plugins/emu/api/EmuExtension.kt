@@ -20,7 +20,7 @@ package jadx.plugins.emu.api
  * @see EmuExtensionContext
  * @see ExtensionMode
  */
-interface EmuExtension {
+public interface EmuExtension {
 
     /**
      * Returns the identity and requirements of this extension.
@@ -28,7 +28,7 @@ interface EmuExtension {
      * The result is read before [init] and each time the extension is listed, so it must not depend on
      * state created in [init].
      */
-    fun info(): EmuExtensionInfo
+    public fun info(): EmuExtensionInfo
 
     /**
      * Returns whether this extension should be initialized for the loaded application.
@@ -38,7 +38,7 @@ interface EmuExtension {
      *
      * Reading [EmuContext.source] here parses the input files, because jadx has not loaded them yet at this point.
      */
-    fun applies(emu: EmuContext): Boolean = true
+    public fun applies(emu: EmuContext): Boolean = true
 
     /**
      * Initializes the extension.
@@ -47,7 +47,7 @@ interface EmuExtension {
      * through [ctx] during this call take part in the current project. An exception thrown here is logged and
      * marks the extension as failed; other extensions are not affected.
      */
-    fun init(ctx: EmuExtensionContext)
+    public fun init(ctx: EmuExtensionContext)
 
     /**
      * Releases resources held by this extension.
@@ -55,13 +55,13 @@ interface EmuExtension {
      * Called when jadx-emu unloads, before the class loader that loaded the extension is closed.
      * The default implementation does nothing.
      */
-    fun unload() {}
+    public fun unload() {}
 }
 
 /**
  * Specifies when an extension runs.
  */
-enum class ExtensionMode {
+public enum class ExtensionMode {
     /**
      * The extension is initialized on every project load where it is enabled.
      * Enablement is stored per project.
@@ -90,7 +90,7 @@ enum class ExtensionMode {
  *   The extension is not initialized on a lower version. `null` disables the check.
  * @throws IllegalArgumentException if [id] does not match `[a-z0-9][a-z0-9-]*`.
  */
-data class EmuExtensionInfo(
+public data class EmuExtensionInfo @JvmOverloads constructor(
     val id: String,
     val name: String,
     val description: String,

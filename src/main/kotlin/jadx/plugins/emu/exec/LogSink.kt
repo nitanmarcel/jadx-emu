@@ -6,7 +6,7 @@ import java.util.Collections
 /**
  * Logs deny-list hits at WARN and other unexecuted host calls at DEBUG, once per callee.
  */
-class LogSink : DiagnosticSink {
+public class LogSink : DiagnosticSink {
     private val reported: MutableSet<String> = Collections.synchronizedSet(HashSet())
 
     override fun report(d: Diagnostic) {

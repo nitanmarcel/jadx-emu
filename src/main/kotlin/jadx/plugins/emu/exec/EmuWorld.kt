@@ -1,3 +1,5 @@
+@file:JvmName("EmuWorlds")
+
 package jadx.plugins.emu.exec
 
 import jadx.plugins.emu.api.Hooks
@@ -13,16 +15,17 @@ import jadx.plugins.emu.api.Hooks
  * @property statics static field storage, class descriptor → (field key → value)
  * @property hooks method hooks, framework stubs and device environment; defaults to the context's
  */
-class EmuWorld(
-    val ctx: EngineContext? = null,
-    val statics: HashMap<String, HashMap<String, Any?>> = HashMap(),
-    val hooks: Hooks = ctx?.hooks ?: Hooks(),
+public class EmuWorld @JvmOverloads constructor(
+    public val ctx: EngineContext? = null,
+    public val statics: HashMap<String, HashMap<String, Any?>> = HashMap(),
+    public val hooks: Hooks = ctx?.hooks ?: Hooks(),
 )
 
 /**
  * Build a concrete-execution [Vm] over [src] that reads and writes the state in [world].
  */
-fun worldVm(src: MethodSource, world: EmuWorld, limits: ExecLimits = ExecLimits()): Vm =
+@JvmOverloads
+public fun worldVm(src: MethodSource, world: EmuWorld, limits: ExecLimits = ExecLimits()): Vm =
     Vm(
         src, host = world.ctx?.host ?: HostBoundary(), limits = limits, hooks = world.hooks, ctx = world.ctx,
         statics = world.statics, androidEnvUnknown = false,

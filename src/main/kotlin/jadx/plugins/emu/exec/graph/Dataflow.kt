@@ -33,46 +33,46 @@ private object NoReturn
  *   [reachable] may under-approximate
  * @property reachable per instruction index, whether any path reaches it
  */
-class DataflowResult internal constructor(
-    val method: DexMethod,
+public class DataflowResult internal constructor(
+    public val method: DexMethod,
     private val inStates: Array<State?>,
     private val outStates: Array<State?>,
-    val returnValue: Any?,
-    val complete: Boolean = true,
+    public val returnValue: Any?,
+    public val complete: Boolean = true,
     private val edges: Map<Int, List<Int>> = emptyMap(),
 ) {
-    val reachable: BooleanArray = BooleanArray(method.insns.size) { inStates[it] != null }
+    public val reachable: BooleanArray = BooleanArray(method.insns.size) { inStates[it] != null }
 
     /**
      * Offsets of the successors actually taken from the instruction at [offset].
      * A conditional branch with a single successor was decided statically.
      */
-    fun successorsOf(offset: Int): List<Int> = edges[offset] ?: emptyList()
+    public fun successorsOf(offset: Int): List<Int> = edges[offset] ?: emptyList()
 
     /**
      * Value of register [reg] before the instruction at [index] executes, or null if unreachable.
      */
-    fun regIn(index: Int, reg: Int): Any? = inStates[index]?.regs?.getOrNull(reg)
+    public fun regIn(index: Int, reg: Int): Any? = inStates[index]?.regs?.getOrNull(reg)
 
     /**
      * Value of register [reg] after the instruction at [index] executes, or null if unreachable.
      */
-    fun regOut(index: Int, reg: Int): Any? = outStates[index]?.regs?.getOrNull(reg)
+    public fun regOut(index: Int, reg: Int): Any? = outStates[index]?.regs?.getOrNull(reg)
 
     /**
      * [regIn] addressed by instruction offset.
      */
-    fun regInAtOffset(offset: Int, reg: Int): Any? = method.offsetToIndex[offset]?.let { regIn(it, reg) }
+    public fun regInAtOffset(offset: Int, reg: Int): Any? = method.offsetToIndex[offset]?.let { regIn(it, reg) }
 
     /**
      * [regOut] addressed by instruction offset.
      */
-    fun regOutAtOffset(offset: Int, reg: Int): Any? = method.offsetToIndex[offset]?.let { regOut(it, reg) }
+    public fun regOutAtOffset(offset: Int, reg: Int): Any? = method.offsetToIndex[offset]?.let { regOut(it, reg) }
 
     /**
      * Whether the instruction at [offset] is reachable.
      */
-    fun isReachableOffset(offset: Int): Boolean = method.offsetToIndex[offset]?.let { reachable[it] } ?: false
+    public fun isReachableOffset(offset: Int): Boolean = method.offsetToIndex[offset]?.let { reachable[it] } ?: false
 }
 
 /**
@@ -83,7 +83,7 @@ class DataflowResult internal constructor(
  * state is modelled weakly. Use it to learn which values are constant at each program point without
  * running the method concretely.
  */
-class Dataflow(private val vm: Vm) {
+public class Dataflow(private val vm: Vm) {
 
     private val interp = Interpreter(vm)
     private val inProgress = HashSet<String>()
@@ -135,7 +135,8 @@ class Dataflow(private val vm: Vm) {
      *
      * @param args concrete argument values to start from; null treats every parameter as unknown
      */
-    fun analyze(method: DexMethod, args: List<Any?>? = null): DataflowResult {
+    @JvmOverloads
+    public fun analyze(method: DexMethod, args: List<Any?>? = null): DataflowResult {
         complete = true
         edges.clear()
         summaryCache.clear()

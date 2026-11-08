@@ -28,7 +28,7 @@ private class Done(val value: Any?) : Step
  * @property returnVal the returned value when [returns] is true
  * @property returns whether the instruction leaves the method
  */
-class AbsResult(val successors: IntArray, val returnVal: Any?, val returns: Boolean)
+public class AbsResult(internal val successors: IntArray, internal val returnVal: Any?, internal val returns: Boolean)
 
 private val EMPTY_INTS = IntArray(0)
 
@@ -57,31 +57,31 @@ private const val FIELD = "Ljava/lang/reflect/Field;"
 /**
  * Supplies the result of an invoke during abstract interpretation.
  */
-fun interface CallResolver {
+public fun interface CallResolver {
     /**
      * @return the call result and its type descriptor; the result may be an [UnknownVal]
      */
-    fun resolve(insn: DalvikInsn, frame: Frame): Pair<Any?, String?>
+    public fun resolve(insn: DalvikInsn, frame: Frame): Pair<Any?, String?>
 }
 
 /**
  * Object and field model used during abstract interpretation.
  */
-interface AbsHeap {
+public interface AbsHeap {
     /**
      * @param site allocation site as `Lcls;#shortId@offset`
      */
-    fun newInstance(site: String, type: String): Any?
-    fun iget(obj: Any?, key: String, type: String): Any?
-    fun iput(obj: Any?, key: String, v: Any?)
-    fun sget(declClass: String, key: String, type: String): Any?
-    fun sput(declClass: String, key: String, v: Any?)
+    public fun newInstance(site: String, type: String): Any?
+    public fun iget(obj: Any?, key: String, type: String): Any?
+    public fun iput(obj: Any?, key: String, v: Any?)
+    public fun sget(declClass: String, key: String, type: String): Any?
+    public fun sput(declClass: String, key: String, v: Any?)
 }
 
 /**
  * Instruction executor behind [Vm]. Most callers should use [Vm.invoke] instead.
  */
-class Interpreter(private val vm: Vm) {
+public class Interpreter(private val vm: Vm) {
 
     private val fallCache = HashMap<DexMethod, Array<IntArray>>()
 
@@ -92,7 +92,7 @@ class Interpreter(private val vm: Vm) {
      * @throws VmAbort if a limit is exceeded
      * @throws jadx.plugins.emu.exec.runtime.DvmThrowable if emulated code throws and does not catch
      */
-    fun run(method: DexMethod, args: List<Any?>, receiver: Any?): Any? {
+    internal fun run(method: DexMethod, args: List<Any?>, receiver: Any?): Any? {
         val frame = Frame(method.registersCount)
         bindParams(frame, method, args, receiver)
         val hook = vm.hook
@@ -129,7 +129,7 @@ class Interpreter(private val vm: Vm) {
      * Store [receiver] and [args] into the parameter registers of [frame], coercing each argument to
      * its declared type.
      */
-    fun bindParams(frame: Frame, method: DexMethod, args: List<Any?>, receiver: Any?) {
+    internal fun bindParams(frame: Frame, method: DexMethod, args: List<Any?>, receiver: Any?) {
         var reg = method.argsStartReg
         if (!method.isStatic) { frame.set(reg, receiver); reg++ }
         var i = 0
@@ -379,7 +379,7 @@ class Interpreter(private val vm: Vm) {
      * successor. Calls go through [resolver], or yield unknown values when it is null; heap accesses go through
      * [heap], or through the VM's concrete state when it is null.
      */
-    fun absStep(method: DexMethod, insn: DalvikInsn, frame: Frame, pc: Int, resolver: CallResolver? = null, heap: AbsHeap? = null): AbsResult {
+    public fun absStep(method: DexMethod, insn: DalvikInsn, frame: Frame, pc: Int, resolver: CallResolver? = null, heap: AbsHeap? = null): AbsResult {
         val res = absStepInner(method, insn, frame, pc, resolver, heap)
         if (insn.resultReg >= 0 && !res.returns) applyResultReg(insn, frame)
         return res
@@ -552,12 +552,12 @@ class Interpreter(private val vm: Vm) {
     /**
      * Find the implementation of [shortId] starting at class [startType] and walking up the superclass chain.
      */
-    fun resolveVirtualFor(startType: String?, shortId: String): DexMethod? = resolveVirtual(startType, shortId)
+    public fun resolveVirtualFor(startType: String?, shortId: String): DexMethod? = resolveVirtual(startType, shortId)
 
     /**
      * Read an invoke's receiver and arguments from [frame].
      */
-    fun gatherArgs(insn: DalvikInsn, frame: Frame, ref: MethodRef, hasReceiver: Boolean): Pair<Any?, MutableList<Any?>> {
+    public fun gatherArgs(insn: DalvikInsn, frame: Frame, ref: MethodRef, hasReceiver: Boolean): Pair<Any?, MutableList<Any?>> {
         val regs = insn.regs
         var i = 0
         val recv = if (hasReceiver) frame.get(regs[i++]) else null
@@ -627,7 +627,7 @@ class Interpreter(private val vm: Vm) {
      * @return the result and its type, or null if [ref] is not a handled reflective call
      * @throws DvmThrowable for failures the Java API reports as exceptions (`Class.cast`, array bounds)
      */
-    fun tryReflect(ref: MethodRef, recv: Any?, args: List<Any?>, allowInvoke: Boolean = true): Pair<Any?, String?>? =
+    internal fun tryReflect(ref: MethodRef, recv: Any?, args: List<Any?>, allowInvoke: Boolean = true): Pair<Any?, String?>? =
         when (ref.declClass) {
             "Ljava/lang/Class;" -> reflectClass(ref.name, recv, args, allowInvoke)
             "Ljava/lang/reflect/Method;" -> reflectMethod(ref.name, recv, args, allowInvoke)

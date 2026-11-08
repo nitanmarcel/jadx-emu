@@ -15,7 +15,7 @@ import kotlin.concurrent.withLock
  * `RUNNING` — executing; `STOPPED` — paused at a breakpoint or step; `FINISHED` — the top-level method
  * returned; `DETACHED` — [EmuController.detach] was called and execution was aborted.
  */
-enum class EmuState { RUNNING, STOPPED, FINISHED, DETACHED }
+public enum class EmuState { RUNNING, STOPPED, FINISHED, DETACHED }
 
 /**
  * One activation on the debugged call stack.
@@ -26,10 +26,10 @@ enum class EmuState { RUNNING, STOPPED, FINISHED, DETACHED }
  * @property insn the current instruction
  * @property descriptor the method as `Lcls;->shortId`
  */
-class EmuFrame(val method: DexMethod, val frame: Frame) {
-    var pc: Int = 0
-    var insn: DalvikInsn? = null
-    val descriptor: String get() = "${method.declClass}->${method.ref.shortId}"
+public class EmuFrame(public val method: DexMethod, public val frame: Frame) {
+    public var pc: Int = 0
+    public var insn: DalvikInsn? = null
+    public val descriptor: String get() = "${method.declClass}->${method.ref.shortId}"
 }
 
 /**
@@ -42,7 +42,7 @@ class EmuFrame(val method: DexMethod, val frame: Frame) {
  * @property returnValue result of the top-level method once [EmuState.FINISHED]
  * @property onStop callback invoked on the emulation thread whenever execution stops or finishes
  */
-class EmuController : ExecHook {
+public class EmuController : ExecHook {
 
     private val lock = ReentrantLock()
     private val cond = lock.newCondition()
@@ -56,33 +56,33 @@ class EmuController : ExecHook {
     private var entryTarget: String? = null
 
     @Volatile
-    var state: EmuState = EmuState.RUNNING
+    public var state: EmuState = EmuState.RUNNING
         private set
 
     @Volatile
-    var returnValue: Any? = null
+    public var returnValue: Any? = null
         private set
 
-    var onStop: (() -> Unit)? = null
+    public var onStop: Runnable? = null
 
     private fun bpKey(descriptor: String, pc: Int) = "$descriptor@$pc"
 
     /**
      * Stop before the instruction at offset [dexPc] of method [descriptor] (`Lcls;->shortId`).
      */
-    fun addBreakpoint(descriptor: String, dexPc: Int) = lock.withLock { breakpoints.add(bpKey(descriptor, dexPc)) }
+    public fun addBreakpoint(descriptor: String, dexPc: Int): Boolean = lock.withLock { breakpoints.add(bpKey(descriptor, dexPc)) }
 
-    fun removeBreakpoint(descriptor: String, dexPc: Int) = lock.withLock { breakpoints.remove(bpKey(descriptor, dexPc)) }
+    public fun removeBreakpoint(descriptor: String, dexPc: Int): Boolean = lock.withLock { breakpoints.remove(bpKey(descriptor, dexPc)) }
 
     /**
      * Call stack, innermost frame first.
      */
-    fun frames(): List<EmuFrame> = lock.withLock { stack.toList().asReversed() }
+    public fun frames(): List<EmuFrame> = lock.withLock { stack.toList().asReversed() }
 
     /**
      * Innermost frame, or null when nothing is executing.
      */
-    fun top(): EmuFrame? = lock.withLock { stack.lastOrNull() }
+    public fun top(): EmuFrame? = lock.withLock { stack.lastOrNull() }
 
     /**
      * Begin executing [method] on a new daemon thread.
@@ -92,7 +92,8 @@ class EmuController : ExecHook {
      * @param runTo if set, run until the instruction at this offset of [method] instead of pausing at entry
      * @throws IllegalArgumentException if [vm] does not use this controller as its hook
      */
-    fun start(vm: Vm, method: DexMethod, args: List<Any?> = emptyList(), receiver: Any? = null, pauseAtEntry: Boolean = true, runTo: Int? = null) {
+    @JvmOverloads
+    public fun start(vm: Vm, method: DexMethod, args: List<Any?> = emptyList(), receiver: Any? = null, pauseAtEntry: Boolean = true, runTo: Int? = null) {
         require(vm.hook === this) { "vm must be constructed with this controller as its hook" }
         lock.withLock {
             stack.clear()
@@ -110,11 +111,11 @@ class EmuController : ExecHook {
                 if (state != EmuState.DETACHED) { returnValue = r; state = EmuState.FINISHED }
                 cond.signalAll()
             }
-            onStop?.invoke()
+            onStop?.run()
         }, "jdex-emu").apply { isDaemon = true; start() }
     }
 
-    override fun onEnter(method: DexMethod, frame: Frame) = lock.withLock { stack.addLast(EmuFrame(method, frame)) }
+    override fun onEnter(method: DexMethod, frame: Frame): Unit = lock.withLock { stack.addLast(EmuFrame(method, frame)) }
 
     override fun onExit(method: DexMethod) { lock.withLock { stack.removeLastOrNull() } }
 
@@ -129,7 +130,7 @@ class EmuController : ExecHook {
             oneShot = null
             cond.signalAll()
         }
-        onStop?.invoke()
+        onStop?.run()
         lock.withLock {
             while (state == EmuState.STOPPED) cond.await()
             if (state == EmuState.DETACHED) throw VmAbort("detached")
@@ -151,39 +152,39 @@ class EmuController : ExecHook {
     /**
      * Continue until the next breakpoint. No-op unless stopped.
      */
-    fun resume() = signal(Mode.RUN)
+    public fun resume(): Unit = signal(Mode.RUN)
 
     /**
      * Execute one instruction, entering calls. No-op unless stopped.
      */
-    fun stepInto() = signal(Mode.INTO)
+    public fun stepInto(): Unit = signal(Mode.INTO)
 
     /**
      * Execute one instruction, running called methods to completion. No-op unless stopped.
      */
-    fun stepOver() = signal(Mode.OVER)
+    public fun stepOver(): Unit = signal(Mode.OVER)
 
     /**
      * Continue until the current method returns. No-op unless stopped.
      */
-    fun stepOut() = signal(Mode.OUT)
+    public fun stepOut(): Unit = signal(Mode.OUT)
 
     /**
      * Continue until offset [dexPc] of method [descriptor] is reached once. No-op unless stopped.
      */
-    fun runToCursor(descriptor: String, dexPc: Int) {
+    public fun runToCursor(descriptor: String, dexPc: Int) {
         lock.withLock { if (state == EmuState.STOPPED) { oneShot = bpKey(descriptor, dexPc); resumeLocked(Mode.RUN) } }
     }
 
     /**
      * Request a stop at the next instruction. No-op unless running.
      */
-    fun pause() = lock.withLock { if (state == EmuState.RUNNING) mode = Mode.INTO }
+    public fun pause(): Unit = lock.withLock { if (state == EmuState.RUNNING) mode = Mode.INTO }
 
     /**
      * Abort the run; the emulation thread exits at its next step.
      */
-    fun detach() = lock.withLock { state = EmuState.DETACHED; cond.signalAll() }
+    public fun detach(): Unit = lock.withLock { state = EmuState.DETACHED; cond.signalAll() }
 
     private fun signal(m: Mode) = lock.withLock { if (state == EmuState.STOPPED) resumeLocked(m) }
 
@@ -199,7 +200,8 @@ class EmuController : ExecHook {
      *
      * @return false on timeout
      */
-    fun awaitStop(timeoutMs: Long = 5000): Boolean = lock.withLock {
+    @JvmOverloads
+    public fun awaitStop(timeoutMs: Long = 5000): Boolean = lock.withLock {
         var remaining = timeoutMs * 1_000_000
         while (state == EmuState.RUNNING && remaining > 0) remaining = cond.awaitNanos(remaining)
         state != EmuState.RUNNING
@@ -210,7 +212,8 @@ class EmuController : ExecHook {
      *
      * @return true if [EmuState.FINISHED]; false on timeout or if detached
      */
-    fun awaitFinished(timeoutMs: Long = 5000): Boolean = lock.withLock {
+    @JvmOverloads
+    public fun awaitFinished(timeoutMs: Long = 5000): Boolean = lock.withLock {
         var remaining = timeoutMs * 1_000_000
         while (state != EmuState.FINISHED && state != EmuState.DETACHED && remaining > 0) remaining = cond.awaitNanos(remaining)
         state == EmuState.FINISHED

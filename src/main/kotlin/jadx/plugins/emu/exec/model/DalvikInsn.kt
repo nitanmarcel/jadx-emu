@@ -5,7 +5,7 @@ import jadx.api.plugins.input.insns.Opcode
 /**
  * Out-of-line data attached to an instruction (switch tables and `fill-array-data` payloads).
  */
-sealed interface InsnPayload
+public sealed interface InsnPayload
 
 /**
  * Payload of a `packed-switch` / `sparse-switch` instruction.
@@ -13,7 +13,7 @@ sealed interface InsnPayload
  * @property keys case keys, parallel to [targets]
  * @property targets branch targets as offsets relative to the switch instruction
  */
-class SwitchPayload(val keys: IntArray, val targets: IntArray) : InsnPayload
+public class SwitchPayload(public val keys: IntArray, public val targets: IntArray) : InsnPayload
 
 /**
  * Payload of a `fill-array-data` instruction.
@@ -22,7 +22,7 @@ class SwitchPayload(val keys: IntArray, val targets: IntArray) : InsnPayload
  * @property elementSize size of one element in bytes
  * @property data the decoded primitive array (e.g. `IntArray`, `ByteArray`), or null if unavailable
  */
-class ArrayPayload(val size: Int, val elementSize: Int, val data: Any?) : InsnPayload
+public class ArrayPayload(public val size: Int, public val elementSize: Int, public val data: Any?) : InsnPayload
 
 /**
  * One decoded Dalvik instruction.
@@ -38,13 +38,13 @@ class ArrayPayload(val size: Int, val elementSize: Int, val data: Any?) : InsnPa
  * @property resultReg register that receives the invoke result directly, without a following `move-result`;
  *   -1 for dex input, set by jadx's Java bytecode input
  */
-class DalvikInsn(
-    val opcode: Opcode,
-    val offset: Int,
-    val regs: IntArray,
-    val literal: Long,
-    val target: Int,
-    val ref: InsnRef?,
-    var payload: InsnPayload?,
-    val resultReg: Int = -1,
+public class DalvikInsn(
+    public val opcode: Opcode,
+    public val offset: Int,
+    public val regs: IntArray,
+    public val literal: Long,
+    public val target: Int,
+    public val ref: InsnRef?,
+    public var payload: InsnPayload?,
+    public val resultReg: Int = -1,
 )

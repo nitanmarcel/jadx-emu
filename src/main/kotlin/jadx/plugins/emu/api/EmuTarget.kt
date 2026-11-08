@@ -17,7 +17,7 @@ import jadx.core.dex.nodes.MethodNode
  *   or `null` when the target is a class.
  * @see TargetStore
  */
-data class EmuTarget(val rawClassName: String, val shortId: String? = null) {
+public data class EmuTarget @JvmOverloads constructor(val rawClassName: String, val shortId: String? = null) {
 
     /**
      * `true` when this target is a method.
@@ -38,7 +38,7 @@ data class EmuTarget(val rawClassName: String, val shortId: String? = null) {
 
     override fun toString(): String = key
 
-    companion object {
+    public companion object {
         /**
          * Parses the textual form produced by [key].
          *
@@ -46,7 +46,7 @@ data class EmuTarget(val rawClassName: String, val shortId: String? = null) {
          * The parts are not validated.
          */
         @JvmStatic
-        fun parse(key: String): EmuTarget {
+        public fun parse(key: String): EmuTarget {
             val i = key.indexOf("->")
             return if (i < 0) EmuTarget(key.trim()) else EmuTarget(key.substring(0, i).trim(), key.substring(i + 2).trim())
         }
@@ -55,13 +55,13 @@ data class EmuTarget(val rawClassName: String, val shortId: String? = null) {
          * Returns the target for a jadx method node.
          */
         @JvmStatic
-        fun of(mth: MethodNode): EmuTarget = EmuTarget(mth.parentClass.classInfo.rawName, mth.methodInfo.shortId)
+        public fun of(mth: MethodNode): EmuTarget = EmuTarget(mth.parentClass.classInfo.rawName, mth.methodInfo.shortId)
 
         /**
          * Returns the target for a jadx class node.
          */
         @JvmStatic
-        fun of(cls: ClassNode): EmuTarget = EmuTarget(cls.classInfo.rawName)
+        public fun of(cls: ClassNode): EmuTarget = EmuTarget(cls.classInfo.rawName)
 
         /**
          * Returns the target for a code node reference, or `null` if the node has no target.
@@ -70,7 +70,7 @@ data class EmuTarget(val rawClassName: String, val shortId: String? = null) {
          * Other nodes, including `null`, map to `null`.
          */
         @JvmStatic
-        fun of(ref: ICodeNodeRef?): EmuTarget? = when (ref) {
+        public fun of(ref: ICodeNodeRef?): EmuTarget? = when (ref) {
             is MethodNode -> of(ref)
             is ClassNode -> of(ref)
             is FieldNode -> of(ref.parentClass)
@@ -85,47 +85,47 @@ data class EmuTarget(val rawClassName: String, val shortId: String? = null) {
  *
  * Changes are stored in the jadx project when one is open. Implementations are thread-safe.
  */
-interface TargetStore {
+public interface TargetStore {
 
     /**
      * Returns all stored targets.
      */
-    fun all(): Set<EmuTarget>
+    public fun all(): Set<EmuTarget>
 
     /**
      * Returns `true` if [target] itself is stored.
      */
-    fun contains(target: EmuTarget): Boolean
+    public fun contains(target: EmuTarget): Boolean
 
     /**
      * Returns `true` if [target] or the class it belongs to is stored.
      */
-    fun appliesTo(target: EmuTarget): Boolean = contains(target) || contains(target.classTarget)
+    public fun appliesTo(target: EmuTarget): Boolean = contains(target) || contains(target.classTarget)
 
     /**
      * Returns `true` if [mth] or its class is stored.
      */
-    fun appliesTo(mth: MethodNode): Boolean = appliesTo(EmuTarget.of(mth))
+    public fun appliesTo(mth: MethodNode): Boolean = appliesTo(EmuTarget.of(mth))
 
     /**
      * Stores [target]. Does nothing if it is already stored.
      */
-    fun add(target: EmuTarget)
+    public fun add(target: EmuTarget)
 
     /**
      * Removes [target]. Does nothing if it is not stored.
      */
-    fun remove(target: EmuTarget)
+    public fun remove(target: EmuTarget)
 
     /**
      * Removes [target] if it is stored, otherwise stores it.
      *
      * @return `true` if [target] is stored after the call.
      */
-    fun toggle(target: EmuTarget): Boolean
+    public fun toggle(target: EmuTarget): Boolean
 
     /**
      * Removes all targets.
      */
-    fun clear()
+    public fun clear()
 }

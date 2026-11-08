@@ -1,3 +1,5 @@
+@file:JvmName("AbsSupport")
+
 package jadx.plugins.emu.exec.graph
 
 import jadx.plugins.emu.exec.CallResolver
@@ -13,7 +15,7 @@ import jadx.api.plugins.input.insns.Opcode
 /**
  * Registers of [method] at entry with every parameter, including `this`, set to an [UnknownVal] of its type.
  */
-fun entryFrameRegs(method: DexMethod): Array<Any?> {
+public fun entryFrameRegs(method: DexMethod): Array<Any?> {
     val regs = arrayOfNulls<Any?>(method.registersCount)
     var r = method.argsStartReg
     if (!method.isStatic) { regs[r] = UnknownVal(method.declClass); r++ }
@@ -26,7 +28,7 @@ fun entryFrameRegs(method: DexMethod): Array<Any?> {
 /**
  * For each instruction index covered by a try block, the offsets of its handlers.
  */
-fun handlerEdgesOf(method: DexMethod): Map<Int, IntArray> {
+public fun handlerEdgesOf(method: DexMethod): Map<Int, IntArray> {
     if (method.tries.isEmpty()) return emptyMap()
     val m = HashMap<Int, IntArray>()
     for (i in method.insns.indices) {
@@ -40,7 +42,7 @@ fun handlerEdgesOf(method: DexMethod): Map<Int, IntArray> {
 /**
  * A [CallResolver] that executes host-class calls through [Vm.hostExec] and treats every other call as unknown.
  */
-fun hostOnlyResolver(vm: Vm, interp: Interpreter): CallResolver = CallResolver { insn, frame ->
+public fun hostOnlyResolver(vm: Vm, interp: Interpreter): CallResolver = CallResolver { insn, frame ->
     val ref = insn.ref as MethodRef
     val op = insn.opcode
     val hasReceiver = op != Opcode.INVOKE_STATIC && op != Opcode.INVOKE_STATIC_RANGE

@@ -16,32 +16,32 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * A method call seen by a [MethodHandler].
  */
-class MethodCall(val vm: Vm, val method: MethodRef, val receiver: Any?, val args: MutableList<Any?>) {
-    var replaced: Boolean = false
+public class MethodCall(public val vm: Vm, public val method: MethodRef, public val receiver: Any?, public val args: MutableList<Any?>) {
+    public var replaced: Boolean = false
         private set
-    var result: Any? = null
+    public var result: Any? = null
         private set
 
     /**
      * Set the call's result instead of running it.
      */
-    fun replace(value: Any?) { replaced = true; result = value }
+    public fun replace(value: Any?) { replaced = true; result = value }
 }
 
 /**
  * Handler for a hooked or stubbed method.
  */
-fun interface MethodHandler { fun MethodCall.handle() }
+public fun interface MethodHandler { public fun MethodCall.handle() }
 
 /**
  * Handle to a registered hook, stub or field.
  */
-fun interface Registration { fun remove() }
+public fun interface Registration { public fun remove() }
 
 /**
  * Values reported for `android.os.Build` and `Build.VERSION` fields.
  */
-class AndroidEnv(
+public class AndroidEnv @JvmOverloads constructor(
     sdkInt: Int = 33,
     release: String = "13",
     model: String = "Pixel 6",
@@ -50,7 +50,7 @@ class AndroidEnv(
     device: String = "oriole",
     product: String = "oriole",
     fingerprint: String = "google/oriole/oriole:13/TQ3A.230805.001/10316531:user/release-keys",
-    val syntheticCaller: String? = null,
+    public val syntheticCaller: String? = null,
 ) {
     private val fields: Map<String, Any?> = mapOf(
         "Landroid/os/Build\$VERSION;->SDK_INT" to sdkInt,
@@ -68,7 +68,7 @@ class AndroidEnv(
     /**
      * Value of the `Build` field, or [NotHandled] if this environment does not define it.
      */
-    fun field(declClass: String, name: String): Any? {
+    public fun field(declClass: String, name: String): Any? {
         val key = "$declClass->$name"
         return if (key in fields) fields[key] else NotHandled
     }
@@ -77,8 +77,9 @@ class AndroidEnv(
 /**
  * Method hooks, framework stubs and static field values, keyed by `Lcls;->name` or `Lcls;->name(args)ret`.
  */
-class Hooks private constructor(val env: AndroidEnv, private val parent: Hooks?) {
-    constructor(env: AndroidEnv = AndroidEnv()) : this(env, null)
+public class Hooks private constructor(public val env: AndroidEnv, private val parent: Hooks?) {
+    @JvmOverloads
+    public constructor(env: AndroidEnv = AndroidEnv()) : this(env, null)
 
     private class Entry(val id: Int, val owner: Hooks, val handler: MethodHandler?, val value: Any?, val builtin: Boolean)
 
@@ -93,32 +94,32 @@ class Hooks private constructor(val env: AndroidEnv, private val parent: Hooks?)
     /**
      * A view of this registry with its own [clear].
      */
-    fun scope(): Hooks = Hooks(env, this)
+    public fun scope(): Hooks = Hooks(env, this)
 
     /**
      * Run [handler] before every call matching [pattern].
      */
-    fun hook(pattern: String, handler: MethodHandler): Registration = add(root.hooks, pattern, handler, null)
+    public fun hook(pattern: String, handler: MethodHandler): Registration = add(root.hooks, pattern, handler, null)
 
     /**
      * Implement a framework or host method matching [pattern].
      */
-    fun stub(pattern: String, handler: MethodHandler): Registration = add(root.stubs, pattern, handler, null)
+    public fun stub(pattern: String, handler: MethodHandler): Registration = add(root.stubs, pattern, handler, null)
 
     /**
      * Implement a framework or host method as returning [value].
      */
-    fun stub(pattern: String, value: Any?): Registration = stub(pattern) { replace(value) }
+    public fun stub(pattern: String, value: Any?): Registration = stub(pattern) { replace(value) }
 
     /**
      * Set the value of static field [pattern].
      */
-    fun field(pattern: String, value: Any?): Registration = add(root.fields, pattern, null, value)
+    public fun field(pattern: String, value: Any?): Registration = add(root.fields, pattern, null, value)
 
     /**
      * Remove the registrations made through this instance.
      */
-    fun clear() {
+    public fun clear() {
         val mine: (Entry) -> Boolean = if (parent == null) { e -> !e.builtin } else { e -> e.owner === this }
         for (map in listOf(root.hooks, root.stubs, root.fields)) for (list in map.values) list.removeIf(mine)
     }
@@ -126,7 +127,7 @@ class Hooks private constructor(val env: AndroidEnv, private val parent: Hooks?)
     /**
      * Whether [declClass] is an Android framework class.
      */
-    fun isFrameworkClass(declClass: String): Boolean = FRAMEWORK_PREFIXES.any { declClass.startsWith(it) }
+    public fun isFrameworkClass(declClass: String): Boolean = FRAMEWORK_PREFIXES.any { declClass.startsWith(it) }
 
     internal fun runHooks(vm: Vm, ref: MethodRef, receiver: Any?, args: MutableList<Any?>): MethodCall? {
         val entries = root.matching(root.hooks, ref) ?: return null
@@ -223,7 +224,7 @@ class Hooks private constructor(val env: AndroidEnv, private val parent: Hooks?)
     private fun decoder(flags: Int): java.util.Base64.Decoder =
         if (flags and URL_SAFE != 0) java.util.Base64.getUrlDecoder() else java.util.Base64.getMimeDecoder()
 
-    companion object {
+    public companion object {
         private const val NO_PADDING = 1
         private const val URL_SAFE = 8
         private val FRAMEWORK_PREFIXES = listOf("Landroid/", "Lcom/android/", "Ldalvik/", "Llibcore/")

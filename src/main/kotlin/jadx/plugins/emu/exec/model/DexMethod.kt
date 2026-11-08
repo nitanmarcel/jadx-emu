@@ -6,7 +6,7 @@ package jadx.plugins.emu.exec.model
  * @property type descriptor of the caught exception type, or null for a catch-all handler
  * @property offset instruction offset where the handler starts
  */
-class Handler(val type: String?, val offset: Int)
+public class Handler(public val type: String?, public val offset: Int)
 
 /**
  * A protected code range and its handlers.
@@ -15,7 +15,7 @@ class Handler(val type: String?, val offset: Int)
  * @property end last covered instruction offset (inclusive)
  * @property handlers handlers in lookup order; a catch-all, if present, is last
  */
-class TryBlock(val start: Int, val end: Int, val handlers: List<Handler>)
+public class TryBlock(public val start: Int, public val end: Int, public val handlers: List<Handler>)
 
 /**
  * A method with its decoded instruction stream, as consumed by the emulator.
@@ -35,16 +35,16 @@ class TryBlock(val start: Int, val end: Int, val handlers: List<Handler>)
  * @property codeOffset offset of the code item in the dex file
  * @property accessFlags `java.lang.reflect.Modifier` bits of the method
  */
-class DexMethod(
-    val declClass: String,
-    val ref: MethodRef,
-    val isStatic: Boolean,
-    val registersCount: Int,
-    val paramWords: Int,
-    val insns: List<DalvikInsn>,
-    val offsetToIndex: Map<Int, Int>,
-    val tries: List<TryBlock>,
-    val codeOffset: Int,
-    val argsStartReg: Int = registersCount - paramWords,
-    val accessFlags: Int = 0,
+public class DexMethod @JvmOverloads constructor(
+    public val declClass: String,
+    public val ref: MethodRef,
+    public val isStatic: Boolean,
+    public val registersCount: Int,
+    public val paramWords: Int,
+    public val insns: List<DalvikInsn>,
+    public val offsetToIndex: Map<Int, Int>,
+    public val tries: List<TryBlock>,
+    public val codeOffset: Int,
+    public val argsStartReg: Int = registersCount - paramWords,
+    public val accessFlags: Int = 0,
 )

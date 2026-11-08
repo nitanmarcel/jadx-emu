@@ -13,12 +13,12 @@ import jadx.plugins.emu.exec.runtime.defaultValueOf
 /**
  * Thrown to stop the current emulation run (limits exceeded, detached debugger, invalid pc).
  */
-class VmAbort(message: String) : RuntimeException(message)
+public class VmAbort(message: String) : RuntimeException(message)
 
 /**
  * Executes `native` methods on behalf of the emulator, e.g. by delegating to a native emulator.
  */
-interface NativeBridge {
+public interface NativeBridge {
     /**
      * Invoke a native method.
      *
@@ -27,7 +27,7 @@ interface NativeBridge {
      * @param receiver the `this` value, or null for static natives
      * @return the result, or an [UnknownVal] if the call cannot be performed
      */
-    fun call(className: String, methodName: String, signature: String, args: List<Any?>, receiver: Any? = null): Any?
+    public fun call(className: String, methodName: String, signature: String, args: List<Any?>, receiver: Any?): Any?
 }
 
 /**
@@ -50,24 +50,24 @@ interface NativeBridge {
  * @property diagnostics sinks for calls this VM could not execute
  * @property syntheticCaller class name reported by `getStackTrace()` frames, or null
  */
-class Vm(
-    val source: MethodSource,
-    val host: HostBoundary = HostBoundary(),
-    val limits: ExecLimits = ExecLimits(),
-    val hook: ExecHook? = null,
-    val nativeBridge: NativeBridge? = null,
-    val hooks: Hooks = Hooks(),
-    val ctx: EngineContext? = null,
-    val statics: HashMap<String, HashMap<String, Any?>> = HashMap(),
-    val androidEnvUnknown: Boolean = true,
-    val diagnostics: List<DiagnosticSink> = emptyList(),
+public class Vm @JvmOverloads constructor(
+    public val source: MethodSource,
+    public val host: HostBoundary = HostBoundary(),
+    public val limits: ExecLimits = ExecLimits(),
+    public val hook: ExecHook? = null,
+    public val nativeBridge: NativeBridge? = null,
+    public val hooks: Hooks = Hooks(),
+    public val ctx: EngineContext? = null,
+    public val statics: HashMap<String, HashMap<String, Any?>> = HashMap(),
+    public val androidEnvUnknown: Boolean = true,
+    public val diagnostics: List<DiagnosticSink> = emptyList(),
 ) {
-    var syntheticCaller: String? = hooks.env.syntheticCaller
+    public var syntheticCaller: String? = hooks.env.syntheticCaller
 
     /**
      * Executor for host-class calls under the [host] policy.
      */
-    val hostExec = HostExec(host, this) { kind, ref, reason -> diagnose(kind, ref, reason) }
+    internal val hostExec: HostExec = HostExec(host, this) { kind, ref, reason -> diagnose(kind, ref, reason) }
     internal var curMethod: DexMethod? = null
     internal var curOffset = -1
 
@@ -97,7 +97,8 @@ class Vm(
      * @param args argument values in declaration order (wide values as a single `Long`/`Double`)
      * @param receiver the `this` value for instance methods
      */
-    fun invoke(method: DexMethod, args: List<Any?> = emptyList(), receiver: Any? = null): Any? {
+    @JvmOverloads
+    public fun invoke(method: DexMethod, args: List<Any?> = emptyList(), receiver: Any? = null): Any? {
         val outer = active == 0
         active++
         try {
@@ -126,7 +127,7 @@ class Vm(
      * Unlike [invoke] this shares the caller's deadline, enforces [ExecLimits.maxDepth], and lets
      * emulated exceptions propagate to the caller. Works outside a run too.
      */
-    fun call(method: DexMethod, args: List<Any?>, receiver: Any?): Any? {
+    public fun call(method: DexMethod, args: List<Any?>, receiver: Any?): Any? {
         if (depth >= limits.maxDepth) {
             diagnose(Diagnostic.Kind.ABORTED, method.ref, "depth limit")
             return UnknownVal(method.ref.returnType)
@@ -148,7 +149,8 @@ class Vm(
     /**
      * Call `shortId` on [receiver], resolved on its runtime class.
      */
-    fun invoke(receiver: Any, shortId: String, args: List<Any?> = emptyList()): Any? {
+    @JvmOverloads
+    public fun invoke(receiver: Any, shortId: String, args: List<Any?> = emptyList()): Any? {
         val type = (receiver as? DvmObject)?.type ?: hostDescriptor(receiver.javaClass)
         if (receiver is DvmObject) interp.resolveVirtualFor(type, shortId)?.let { return call(it, args, receiver) }
         return hostExec.invokeInstance(MethodRef.of(type, shortId), receiver, args)
@@ -161,7 +163,8 @@ class Vm(
      *
      * @throws IllegalArgumentException if no such constructor exists
      */
-    fun construct(classDesc: String, ctorSig: String = "()V", args: List<Any?> = emptyList()): DvmObject {
+    @JvmOverloads
+    public fun construct(classDesc: String, ctorSig: String = "()V", args: List<Any?> = emptyList()): DvmObject {
         val obj = DvmObject(classDesc)
         source.method(classDesc, "<init>$ctorSig")?.let { init ->
             invoke(init, args, obj)
@@ -174,7 +177,7 @@ class Vm(
     /**
      * Read static field `Lcls;->NAME`, initializing the class first; [UNKNOWN] if it cannot be read.
      */
-    fun getStatic(pattern: String): Any? {
+    public fun getStatic(pattern: String): Any? {
         val (cls, name) = splitField(pattern)
         val info = source.classInfo(cls)
         if (info == null) return hostStaticField(cls, name).let { if (it === NotHandled) UNKNOWN else it }
@@ -187,7 +190,7 @@ class Vm(
     /**
      * Write static field `Lcls;->NAME` of an application class, initializing the class first.
      */
-    fun setStatic(pattern: String, value: Any?) {
+    public fun setStatic(pattern: String, value: Any?) {
         val (cls, name) = splitField(pattern)
         runCatching { ensureClinit(cls) }
         val meta = findField(cls, name, static = true)
@@ -198,7 +201,7 @@ class Vm(
     /**
      * Read instance field [name] of [obj], resolved on its class chain.
      */
-    fun getField(obj: DvmObject, name: String): Any? {
+    public fun getField(obj: DvmObject, name: String): Any? {
         val meta = findField(obj.type, name, static = false)
         val key = meta?.ref?.key ?: obj.fields.keys.firstOrNull { it.endsWith(".$name") } ?: return UNKNOWN
         return if (obj.fields.containsKey(key)) obj.fields[key] else defaultValueOf(meta?.ref?.type ?: "")
@@ -207,7 +210,7 @@ class Vm(
     /**
      * Write instance field [name] of [obj], resolved on its class chain.
      */
-    fun setField(obj: DvmObject, name: String, value: Any?) {
+    public fun setField(obj: DvmObject, name: String, value: Any?) {
         val meta = findField(obj.type, name, static = false)
         obj.fields[meta?.ref?.key ?: obj.fields.keys.firstOrNull { it.endsWith(".$name") } ?: "${obj.type}.$name"] = value
     }
@@ -231,19 +234,19 @@ class Vm(
     /**
      * Static field storage of [declClass], created on first access. Keys are [jadx.plugins.emu.exec.model.FieldRef.key].
      */
-    fun staticsOf(declClass: String): HashMap<String, Any?> = statics.getOrPut(declClass) { HashMap() }
+    public fun staticsOf(declClass: String): HashMap<String, Any?> = statics.getOrPut(declClass) { HashMap() }
 
     /**
      * Descriptors of classes whose static initializer has started or completed in this VM.
      */
-    fun initialized(): Set<String> = clinitState.keys
+    public fun initialized(): Set<String> = clinitState.keys
 
     /**
      * Read a static field of a host or framework class.
      *
      * @return the value, or [NotHandled] if the field is stubbed as unknown, blocked by policy, or unreadable
      */
-    fun hostStaticField(declClass: String, name: String): Any? {
+    internal fun hostStaticField(declClass: String, name: String): Any? {
         if (androidEnvUnknown && hooks.env.field(declClass, name) !== NotHandled) return NotHandled
         val stub = hooks.fieldValue(declClass, name)
         if (stub !== NotHandled) return stub
@@ -259,7 +262,7 @@ class Vm(
      * Superclasses are initialized first. Static state comes from [ctx]'s snapshot when available,
      * otherwise from constant field initializers followed by running `<clinit>`. Unknown classes are ignored.
      */
-    fun ensureClinit(desc: String) {
+    public fun ensureClinit(desc: String) {
         if (clinitState[desc] != null) return
         val info = source.classInfo(desc) ?: return
         clinitState[desc] = ClinitState.RUNNING
@@ -278,5 +281,5 @@ class Vm(
     /**
      * Whether the [ExecLimits.maxMillis] deadline of the current run has passed.
      */
-    fun deadlineExceeded(): Boolean = System.nanoTime() >= deadline
+    internal fun deadlineExceeded(): Boolean = System.nanoTime() >= deadline
 }

@@ -7,8 +7,8 @@ package jadx.plugins.emu.exec
  * @property maxMillis wall-clock deadline for a top-level invoke; 0 or negative disables the deadline
  * @property maxDepth maximum nested call depth; deeper calls return an unknown value instead of executing
  */
-class ExecLimits(
-    val maxSteps: Int = 500_000,
-    val maxMillis: Long = 2_000,
-    val maxDepth: Int = 64,
+public class ExecLimits @JvmOverloads constructor(
+    public val maxSteps: Int = 500_000,
+    public val maxMillis: Long = 2_000,
+    public val maxDepth: Int = 64,
 )

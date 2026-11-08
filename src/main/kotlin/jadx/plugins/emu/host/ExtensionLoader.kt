@@ -17,6 +17,8 @@ import java.io.Closeable
 import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.function.Consumer
+import java.util.function.Predicate
 import java.util.ServiceLoader
 import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
@@ -182,20 +184,20 @@ internal class ExtensionLoader(
 
         override fun addCodeAction(
             name: String,
-            enabled: ((EmuTarget) -> Boolean)?,
+            enabled: Predicate<EmuTarget>?,
             keyBinding: String?,
-            action: (EmuTarget) -> Unit,
+            action: Consumer<EmuTarget>,
         ) {
             val g = host.guiContext ?: return
             popupSubmenu.register(name)
             g.addPopupMenuAction(
                 name,
-                { ref -> EmuTarget.of(ref)?.let { t -> enabled?.invoke(t) ?: true } ?: false },
+                { ref -> EmuTarget.of(ref)?.let { t -> enabled?.test(t) ?: true } ?: false },
                 keyBinding,
             ) { ref ->
                 val t = EmuTarget.of(ref) ?: return@addPopupMenuAction
                 try {
-                    action(t)
+                    action.accept(t)
                 } catch (e: Throwable) {
                     log.error("action '{}' failed on {}", name, t, e)
                 }

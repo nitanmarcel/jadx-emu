@@ -4,6 +4,7 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.util.function.Function
 
 /**
  * A set of host API signatures in the forbidden-apis file syntax.
@@ -13,7 +14,7 @@ import java.lang.reflect.Method
  * `@includeBundled name`, `#` comments, and a trailing ` @ message`. The legacy `Lpkg/Cls;->name` form of
  * earlier plugin versions is accepted as `pkg.Cls#name(**)`.
  */
-class SignatureSet private constructor(
+public class SignatureSet private constructor(
     private val classes: Set<String>,
     private val classGlobs: List<Regex>,
     private val members: Set<String>,
@@ -23,13 +24,14 @@ class SignatureSet private constructor(
     /**
      * Whether [cls] or any of its supertypes is listed as a whole class.
      */
-    fun matchesClass(cls: Class<*>): Boolean = hierarchy(cls).any { matchesClassName(it.name) }
+    public fun matchesClass(cls: Class<*>): Boolean = hierarchy(cls).any { matchesClassName(it.name) }
 
     /**
      * Whether [m] is listed, directly or through a class-level entry on its declaring class or any supertype
      * of [receiverClass].
      */
-    fun matches(m: Executable, receiverClass: Class<*>? = null): Boolean {
+    @JvmOverloads
+    public fun matches(m: Executable, receiverClass: Class<*>? = null): Boolean {
         if (matchesClass(m.declaringClass)) return true
         if (receiverClass != null && matchesClass(receiverClass)) return true
         val name = if (m is Constructor<*>) "<init>" else (m as Method).name
@@ -45,15 +47,15 @@ class SignatureSet private constructor(
     /**
      * Whether field [f] is listed, directly or through a class-level entry.
      */
-    fun matches(f: Field): Boolean =
+    public fun matches(f: Field): Boolean =
         matchesClass(f.declaringClass) || hierarchy(f.declaringClass).any { "${it.name}#${f.name}" in members }
 
-    fun isEmpty(): Boolean = classes.isEmpty() && classGlobs.isEmpty() && members.isEmpty() && anyOverload.isEmpty()
+    public fun isEmpty(): Boolean = classes.isEmpty() && classGlobs.isEmpty() && members.isEmpty() && anyOverload.isEmpty()
 
     /**
      * Human-readable listing of every entry, for diagnostics.
      */
-    fun entries(): List<String> = (classes + classGlobs.map { it.pattern } + members + anyOverload.map { "$it(**)" }).sorted()
+    public fun entries(): List<String> = (classes + classGlobs.map { it.pattern } + members + anyOverload.map { "$it(**)" }).sorted()
 
     private fun matchesClassName(name: String): Boolean = name in classes || classGlobs.any { it.matches(name) }
 
@@ -70,15 +72,17 @@ class SignatureSet private constructor(
         }
     }
 
-    companion object {
-        val EMPTY: SignatureSet = SignatureSet(emptySet(), emptyList(), emptySet(), emptySet())
+    public companion object {
+        public val EMPTY: SignatureSet = SignatureSet(emptySet(), emptyList(), emptySet(), emptySet())
 
         /**
          * Parse signature text; `@includeBundled` references are resolved through [bundled].
          *
          * @throws IllegalArgumentException on a malformed line
          */
-        fun parse(text: String, bundled: (String) -> String? = { null }): SignatureSet {
+        @JvmStatic
+        @JvmOverloads
+        public fun parse(text: String, bundled: Function<String, String?> = Function { null }): SignatureSet {
             val b = Builder()
             b.addAll(text, bundled, HashSet())
             return b.build()
@@ -87,7 +91,8 @@ class SignatureSet private constructor(
         /**
          * Union of [sets].
          */
-        fun union(sets: Iterable<SignatureSet>): SignatureSet {
+        @JvmStatic
+        public fun union(sets: Iterable<SignatureSet>): SignatureSet {
             val b = Builder()
             for (s in sets) {
                 b.classes += s.classes; b.classGlobs += s.classGlobs; b.members += s.members; b.anyOverload += s.anyOverload
@@ -103,14 +108,14 @@ class SignatureSet private constructor(
 
             fun build() = SignatureSet(classes, classGlobs, members, anyOverload)
 
-            fun addAll(text: String, bundled: (String) -> String?, seen: MutableSet<String>) {
+            fun addAll(text: String, bundled: Function<String, String?>, seen: MutableSet<String>) {
                 for (raw in text.lineSequence()) {
                     val line = raw.substringBefore(" @ ").trim()
                     if (line.isEmpty() || line.startsWith("#")) continue
                     if (line.startsWith("@defaultMessage")) continue
                     if (line.startsWith("@includeBundled")) {
                         val name = line.removePrefix("@includeBundled").trim()
-                        if (seen.add(name)) addAll(bundled(name) ?: throw IllegalArgumentException("unknown bundled signatures: $name"), bundled, seen)
+                        if (seen.add(name)) addAll(bundled.apply(name) ?: throw IllegalArgumentException("unknown bundled signatures: $name"), bundled, seen)
                         continue
                     }
                     if (line.startsWith("@")) throw IllegalArgumentException("unknown directive: $line")
